@@ -1,0 +1,52 @@
+{
+  "name": "calcamp",
+  "version": "1.0.0",
+  "description": "Plovoucí kalkulačka s vestavěným MP3 přehrávačem ve stylu Winampu (Electron, cross-platform)",
+  "author": "Richard <tengosro@gmail.com>",
+  "homepage": "https://github.com/tengosro/calcamp",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:linux": "electron-builder --linux",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "^32.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "cz.aijarmark.calcamp",
+    "productName": "CalcAmp",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "calcamp.svg"
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Utility",
+      "icon": "build/icon.png"
+    },
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "build/icon.png"
+    },
+    "mac": {
+      "target": ["dmg", "zip"],
+      "category": "public.app-category.utilities",
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}
