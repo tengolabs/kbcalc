@@ -22,7 +22,7 @@ function createWindow() {
     frame: false,          // bez titulní lišty
     transparent: true,     // průhledné pozadí -> plovoucí zaoblené rohy
     resizable: true,
-    alwaysOnTop: true,     // vždy navrchu
+    alwaysOnTop: false,    // vždy navrchu je ve výchozím stavu VYPNuto (zapíná se tlačítkem ◉)
     hasShadow: true,
     backgroundColor: '#00000000',
     skipTaskbar: false,
@@ -35,7 +35,6 @@ function createWindow() {
     },
   });
 
-  win.setAlwaysOnTop(true, 'floating');
   const q = process.env.CALCAMP_OPEN ? { query: { open: '1' } } : undefined;
   win.loadFile('index.html', q);
   // win.webContents.openDevTools({ mode: 'detach' });

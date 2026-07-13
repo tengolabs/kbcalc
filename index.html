@@ -32,7 +32,7 @@
     -webkit-font-smoothing:antialiased; user-select:none;
     overflow:hidden;
   }
-  #app{ display:flex; align-items:stretch; }
+  #app{ display:flex; align-items:flex-start; }   /* kalkulačka drží svoji výšku; přehrávač ji nesmí roztáhnout */
 
   /* ============ CALCULATOR ============ */
   #calc{
@@ -111,7 +111,7 @@
   #player{
     width:0; overflow:hidden; opacity:0;
     transition:width .35s ease, opacity .3s ease, margin .35s ease;
-    align-self:stretch; margin-left:0;
+    align-self:flex-start; margin-left:0;
   }
   #app.open #player{ width:330px; opacity:1; margin-left:14px; }
   #app.open #expandBtn{ transform:rotate(180deg); }
@@ -718,10 +718,13 @@
 
   // ---- fit the OS window exactly around the content ----
   function fitWindow(){
+    const player = document.getElementById('player');
+    player.style.height='';                                           // uvolni, ať kalkulačka určí přirozenou výšku
     const c = document.getElementById('calc').getBoundingClientRect();
     const open = app.classList.contains('open');
-    const w = Math.ceil(c.width) + (open ? 14 + 330 : 0);
     const h = Math.ceil(c.height);
+    if(open) player.style.height = h + 'px';                          // zastropuj přehrávač na výšku kalkulačky -> playlist roluje uvnitř
+    const w = Math.ceil(c.width) + (open ? 14 + 330 : 0);
     if(window.win && window.win.resize){ window.win.resize(w, h); }   // Electron: setContentSize
     else{ const dw=window.outerWidth-window.innerWidth, dh=window.outerHeight-window.innerHeight;
           try{ window.resizeTo(w+dw, h+dh); }catch(e){} }
@@ -745,8 +748,7 @@
   if(wc){
     document.getElementById('closeBtn').onclick=()=>wc.close();
     document.getElementById('minBtn').onclick=()=>wc.min();
-    const pin=document.getElementById('pinBtn');
-    pin.classList.add('pinned');                       // vždy navrchu je default zapnuto
+    const pin=document.getElementById('pinBtn');       // vždy navrchu je ve výchozím stavu VYPNuté
     pin.onclick=async()=>{ const on=await wc.togglePin(); pin.classList.toggle('pinned',!!on); };
   } else {
     // běh v obyčejném prohlížeči — schovej tlačítka okna
