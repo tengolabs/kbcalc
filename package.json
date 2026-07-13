@@ -1,6 +1,6 @@
 {
   "name": "calcamp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Plovoucí kalkulačka s vestavěným MP3 přehrávačem ve stylu Winampu (Electron, cross-platform)",
   "author": "Richard <tengosro@gmail.com>",
   "homepage": "https://github.com/tengosro/calcamp",
