@@ -204,6 +204,32 @@
   #vizFullBar span{ margin:0 12px; }
   #vizFullStyle{ color:var(--lcd); text-shadow:0 0 8px var(--lcd-dim); }
   #vizFullBar .hint{ color:#0f8f42; }
+
+  /* přepínač playlistů */
+  #plSwitch{ flex:1 1 auto; min-width:0; cursor:pointer; color:#7fd0ff;
+    display:flex; align-items:center; gap:4px; }
+  #plSwitch b{ color:var(--lcd); font-weight:700; white-space:nowrap; overflow:hidden;
+    text-overflow:ellipsis; max-width:150px; }
+  #plSwitch i{ color:#0f8f42; font-style:normal; flex:0 0 auto; }
+  #plSwitch .caret{ color:#0f8f42; flex:0 0 auto; }
+  #plSwitch:hover b{ text-shadow:0 0 6px var(--lcd-dim); }
+  .plActions{ display:flex; gap:7px; flex:0 0 auto; align-items:center; }
+  .plActions span{ cursor:pointer; color:var(--amber); }
+  .plActions span:hover{ filter:brightness(1.35); text-shadow:0 0 6px rgba(255,180,58,.5); }
+  .pl-rename{ font:11px "Consolas",monospace; background:#03260f; color:var(--lcd);
+    border:1px solid var(--lcd-dim); border-radius:3px; width:140px; padding:1px 4px; outline:none; }
+  #plMenu{ position:fixed; display:none; z-index:100000; background:#0a1a0d;
+    border:1px solid var(--lcd-dim); border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,.75);
+    max-height:240px; overflow-y:auto; padding:4px; }
+  #plMenu.on{ display:block; }
+  #plMenu .pl-item{ font:11px "Consolas",monospace; color:var(--lcd-dim); padding:5px 10px;
+    cursor:pointer; white-space:nowrap; border-radius:4px; }
+  #plMenu .pl-item:hover{ background:rgba(43,255,119,.12); color:var(--lcd); }
+  #plMenu .pl-item.on{ color:var(--lcd); background:rgba(43,255,119,.18); font-weight:700; }
+  #plMenu::-webkit-scrollbar{ width:8px; }
+  #plMenu::-webkit-scrollbar-thumb{ background:#0a5f2b; border-radius:4px; }
+  /* zvýraznění při přetahování souborů/složek */
+  body.dragging #calc, body.dragging .amp{ outline:2px dashed var(--lcd); outline-offset:-2px; }
 </style>
 
 <div id="app">
@@ -305,9 +331,16 @@
       </div>
 
       <div class="plwrap">
-        <div class="plhead"><span style="color:#7fd0ff;cursor:default">PLAYLIST</span>
-          <span id="addFiles">+ PŘIDAT</span></div>
-        <ul id="playlist"><li class="empty">Playlist je prázdný. Klikni na „+ PŘIDAT“ nebo ⏏.</li></ul>
+        <div class="plhead">
+          <span id="plSwitch" title="Přepnout playlist">▤ <b id="plName">Playlist 1</b> <i id="plCount">(0)</i> <span class="caret">▾</span></span>
+          <span class="plActions">
+            <span id="plNew" title="Nový prázdný playlist">＋</span>
+            <span id="plRename" title="Přejmenovat playlist">✎</span>
+            <span id="plDel" title="Smazat playlist">🗑</span>
+            <span id="addFiles" title="Přidat soubory">⏏</span>
+          </span>
+        </div>
+        <ul id="playlist"><li class="empty">Playlist je prázdný. Přetáhni sem MP3 / složku, nebo klikni ⏏.</li></ul>
       </div>
     </div>
   </div>
@@ -315,6 +348,7 @@
 
 <input type="file" id="fileInput" accept="audio/*,.mp3,.m4a,.ogg,.wav,.flac" multiple hidden>
 <audio id="audio" crossorigin="anonymous"></audio>
+<div id="plMenu"></div>
 
 <!-- fullscreen vizualizér -->
 <div id="vizFull">
@@ -399,7 +433,11 @@
   const fileInput = document.getElementById('fileInput');
   const plEl = document.getElementById('playlist');
   const app = document.getElementById('app');
-  let list = [], idx = -1, playing = false;
+  const plMenu = document.getElementById('plMenu');
+  // víc playlistů: playlists[i] = { name, idx, items:[{title, path, url?}] }
+  // `list` je vždy odkaz na items aktivního playlistu, `idx` = skladba v něm.
+  let playlists = [], activePl = 0, list = [], idx = -1, playing = false;
+  let curUrlTrack = null;   // kvůli uvolňování lazy blobů z paměti
 
   const miniTitle = document.getElementById('miniTitle');
   const miniBar = document.getElementById('miniBar');
@@ -413,9 +451,80 @@
 
   const secfmt = s => { s=Math.floor(s||0); return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); };
   const nameFrom = f => f.name.replace(/\.[^.]+$/,'');
+  const EMPTY_MSG = 'Playlist je prázdný. Přetáhni sem MP3 / složku, nebo klikni ⏏.';
+
+  /* ---- víc playlistů ---- */
+  function ensureDefault(){
+    if(!playlists.length){ playlists=[{name:'Playlist 1', idx:-1, items:[]}]; activePl=0; }
+    list = playlists[activePl].items;
+  }
+  function uniqueName(name, exceptIdx){
+    name = (name||'Playlist').trim() || 'Playlist';
+    const taken = nm => playlists.some((p,k)=>k!==exceptIdx && p.name===nm);
+    if(!taken(name)) return name;
+    let n=2; while(taken(name+' ('+n+')')) n++;
+    return name+' ('+n+')';
+  }
+  function addPlaylist(name, items){
+    const pl={ name:uniqueName(name), idx:(items&&items.length)?0:-1, items:items||[] };
+    playlists.push(pl); return playlists.length-1;
+  }
+  function renderTabs(){
+    const nm=document.getElementById('plName'); if(nm) nm.textContent=playlists[activePl].name;
+    const ct=document.getElementById('plCount'); if(ct) ct.textContent='('+playlists[activePl].items.length+')';
+  }
+  function switchPlaylist(j){
+    if(j<0||j>=playlists.length) return;
+    if(playlists[activePl]) playlists[activePl].idx = idx;
+    activePl=j; list=playlists[j].items;
+    idx = Math.min(Math.max(-1, playlists[j].idx|0), list.length-1);
+    renderTabs(); renderPlaylist(); savePlaylist();
+    // přepnutí nepřeruší přehrávání; když nic nehraje, jen připrav (bez spuštění)
+    if(audio.paused){ if(idx>=0) load(idx,false); else setTitle('— žádná skladba —'); }
+  }
+  function newEmptyPlaylist(){
+    const j=addPlaylist('Playlist '+(playlists.length+1), []);
+    switchPlaylist(j); setOpen(true); startRename();
+  }
+  function delPlaylist(){
+    if(!confirm('Smazat playlist „'+playlists[activePl].name+'“?\n(hudební soubory na disku zůstanou)')) return;
+    playlists.splice(activePl,1);
+    ensureDefault();
+    activePl=Math.min(activePl, playlists.length-1); list=playlists[activePl].items;
+    idx=Math.min(Math.max(-1, playlists[activePl].idx|0), list.length-1);
+    renderTabs(); renderPlaylist(); savePlaylist();
+    if(audio.paused){ if(idx>=0) load(idx,false); else setTitle('— žádná skladba —'); }
+  }
+  function startRename(){
+    const nm=document.getElementById('plName'); if(!nm || document.getElementById('plRenameInput')) return;
+    const inp=document.createElement('input'); inp.id='plRenameInput'; inp.className='pl-rename';
+    inp.value=playlists[activePl].name; nm.style.display='none'; nm.after(inp);
+    inp.focus(); inp.select();
+    let done=false;
+    const finish=ok=>{ if(done) return; done=true;
+      if(ok){ const v=inp.value.trim(); if(v) playlists[activePl].name=uniqueName(v, activePl); }
+      inp.remove(); nm.style.display=''; renderTabs(); savePlaylist(); };
+    inp.onkeydown=e=>{ e.stopPropagation(); if(e.key==='Enter') finish(true); else if(e.key==='Escape') finish(false); };
+    inp.onblur=()=>finish(true);
+    inp.onclick=e=>e.stopPropagation();
+  }
+  // rozbalovací seznam playlistů
+  function openPlMenu(){
+    const sw=document.getElementById('plSwitch'); const r=sw.getBoundingClientRect();
+    plMenu.innerHTML='';
+    playlists.forEach((pl,i)=>{
+      const d=document.createElement('div'); d.className='pl-item'+(i===activePl?' on':'');
+      d.textContent=pl.name+'  ('+pl.items.length+')';
+      d.onclick=e=>{ e.stopPropagation(); closePlMenu(); switchPlaylist(i); };
+      plMenu.appendChild(d);
+    });
+    plMenu.style.left=r.left+'px'; plMenu.style.top=(r.bottom+3)+'px'; plMenu.style.minWidth=r.width+'px';
+    plMenu.classList.add('on');
+  }
+  function closePlMenu(){ plMenu.classList.remove('on'); }
 
   function renderPlaylist(){
-    if(!list.length){ plEl.innerHTML='<li class="empty">Playlist je prázdný. Klikni na „+ PŘIDAT“ nebo ⏏.</li>'; return; }
+    if(!list.length){ plEl.innerHTML='<li class="empty">'+EMPTY_MSG+'</li>'; return; }
     plEl.innerHTML='';
     list.forEach((t,i)=>{
       const li=document.createElement('li');
@@ -428,12 +537,23 @@
 
   function setTitle(txt){ miniTitle.textContent=txt; trackTitle.textContent=txt; }
 
-  function load(i, autoplay){
+  async function load(i, autoplay){
     if(i<0||i>=list.length) return;
-    idx=i; audio.src=list[i].url;
-    setTitle((i+1)+'. '+list[i].title);
-    renderPlaylist();
-    if(typeof savePlaylist==='function') savePlaylist();
+    idx=i; const t=list[i];
+    // lazy: soubory přetažené/obnovené mají jen path → načti bytes z disku až teď
+    if(!t.url && t.path && window.win && window.win.readFile){
+      try{ const bytes=await window.win.readFile(t.path);
+        if(bytes){ t.url=URL.createObjectURL(new Blob([bytes])); t._lazy=true; } }catch(e){}
+    }
+    // uvolni předchozí lazy blob (drž v paměti max jednu skladbu naráz)
+    if(curUrlTrack && curUrlTrack!==t && curUrlTrack._lazy && curUrlTrack.url){
+      URL.revokeObjectURL(curUrlTrack.url); curUrlTrack.url=null;
+    }
+    curUrlTrack=t;
+    if(t.url) audio.src=t.url; else audio.removeAttribute('src');
+    setTitle((i+1)+'. '+t.title);
+    renderTabs(); renderPlaylist();
+    savePlaylist();
     if(autoplay) play();
   }
 
@@ -461,8 +581,8 @@
     if(audio._graph&&audio._graph.gain) audio._graph.gain.gain.value=v; else audio.volume=v; }
   function applyBal(){ if(audio._graph&&audio._graph.panner) audio._graph.panner.pan.value=bal.value/100; }
 
-  function play(){
-    if(idx<0 && list.length){ load(0,false); }
+  async function play(){
+    if(idx<0 && list.length){ await load(0,false); }
     if(idx<0) return;
     ensureAudioGraph();
     if(audio._graph && audio._graph.ctx.state==='suspended') audio._graph.ctx.resume();
@@ -500,48 +620,101 @@
   document.getElementById('miniNext').onclick=next;
   document.getElementById('addFiles').onclick=()=>fileInput.click();
 
-  // file loading
+  // přidání souborů přes dialog (⏏) — do aktuálního playlistu
+  const AUDIO_RE = /\.(mp3|m4a|ogg|oga|wav|flac|aac|opus|wma)$/i;
   fileInput.addEventListener('change', e=>{
-    const files=[...e.target.files].filter(f=>f.type.startsWith('audio/')||/\.(mp3|m4a|ogg|wav|flac|aac)$/i.test(f.name));
+    const files=[...e.target.files].filter(f=>f.type.startsWith('audio/')||AUDIO_RE.test(f.name));
     const startEmpty = list.length===0;
     files.forEach(f=>{
       const p = (window.win && window.win.getPath) ? window.win.getPath(f) : (f.path||'');
       list.push({title:nameFrom(f), url:URL.createObjectURL(f), path:p});
     });
-    renderPlaylist(); savePlaylist();
+    renderTabs(); renderPlaylist(); savePlaylist();
     if(startEmpty && list.length){ load(0,true); setOpen(true); }
     fileInput.value='';
   });
 
-  // ---- zapamatování playlistu mezi spuštěními ----
+  // ---- DRAG & DROP: soubor(y) do aktuálního playlistu, složka = nový playlist po ní pojmenovaný ----
+  async function handleExpanded(res){
+    const target=list, curEmpty=target.length===0;
+    let firstNewPl=-1, addedToCurrent=false;
+    for(const r of res){
+      if(r.type==='dir' && r.files && r.files.length){
+        const j=addPlaylist(r.name, r.files.map(f=>({title:f.title, path:f.path})));
+        if(firstNewPl<0) firstNewPl=j;
+      } else if(r.type==='file' && r.file){
+        target.push({title:r.file.title, path:r.file.path}); addedToCurrent=true;
+      }
+    }
+    if(firstNewPl>=0){ switchPlaylist(firstNewPl); setOpen(true); load(0,true); }     // přepni na 1. novou složku a hraj
+    else if(addedToCurrent){ renderTabs(); renderPlaylist(); setOpen(true); if(curEmpty) load(0,true); }
+    savePlaylist();
+  }
+  const dropHint = on => document.body.classList.toggle('dragging', !!on);
+  ['dragenter','dragover'].forEach(ev=>document.addEventListener(ev, e=>{
+    e.preventDefault(); if(e.dataTransfer) e.dataTransfer.dropEffect='copy'; dropHint(true); }));
+  document.addEventListener('dragleave', e=>{ if(!e.relatedTarget) dropHint(false); });
+  document.addEventListener('drop', async e=>{
+    e.preventDefault(); dropHint(false);
+    const files=[...((e.dataTransfer&&e.dataTransfer.files)||[])];
+    if(!files.length) return;
+    if(window.win && window.win.getPath && window.win.expand){        // Electron: umí i složky (rekurzivně)
+      const paths=files.map(f=>window.win.getPath(f)).filter(Boolean);
+      const res=await window.win.expand(paths);
+      await handleExpanded(res);
+    } else {                                                          // prohlížeč: jen zvukové soubory do aktuálního
+      const curEmpty=list.length===0;
+      files.filter(f=>f.type.startsWith('audio/')||AUDIO_RE.test(f.name))
+           .forEach(f=>list.push({title:nameFrom(f), url:URL.createObjectURL(f), path:(f.path||'')}));
+      renderTabs(); renderPlaylist(); savePlaylist(); setOpen(true); if(curEmpty && list.length) load(0,true);
+    }
+  });
+
+  // ---- ovládání přepínače playlistů ----
+  document.getElementById('plSwitch').onclick=e=>{ e.stopPropagation();
+    plMenu.classList.contains('on') ? closePlMenu() : openPlMenu(); };
+  document.getElementById('plNew').onclick=e=>{ e.stopPropagation(); newEmptyPlaylist(); };
+  document.getElementById('plRename').onclick=e=>{ e.stopPropagation(); startRename(); };
+  document.getElementById('plDel').onclick=e=>{ e.stopPropagation(); delPlaylist(); };
+  document.addEventListener('click', ()=>closePlMenu());
+
+  // ---- zapamatování playlistů mezi spuštěními (ukládá se jen cesta, ne bytes) ----
   let lastSave=0;
   function savePlaylist(){
     try{
-      const data={ items:list.filter(t=>t.path).map(t=>({title:t.title, path:t.path})),
-                   idx, time: audio.currentTime||0 };
-      localStorage.setItem('calcamp.playlist', JSON.stringify(data));
+      if(playlists[activePl]) playlists[activePl].idx = idx;
+      const pls = playlists.map(pl=>({
+        name: pl.name, idx: pl.idx|0,
+        items: pl.items.filter(t=>t.path).map(t=>({title:t.title, path:t.path}))
+      }));
+      localStorage.setItem('calcamp.playlists',
+        JSON.stringify({ playlists:pls, active:activePl, time:audio.currentTime||0 }));
     }catch(e){}
   }
   async function restorePlaylist(){
-    let data; try{ data=JSON.parse(localStorage.getItem('calcamp.playlist')||'null'); }catch(e){}
-    if(!data || !data.items || !data.items.length) return;
-    if(!(window.win && window.win.readFile)) return;      // jen v Electronu (přístup k disku)
-    for(const it of data.items){
-      try{
-        const bytes = await window.win.readFile(it.path);
-        if(!bytes) continue;                               // soubor zmizel -> přeskoč
-        list.push({ title:it.title, url:URL.createObjectURL(new Blob([bytes])), path:it.path });
-      }catch(e){}
+    let data; try{ data=JSON.parse(localStorage.getItem('calcamp.playlists')||'null'); }catch(e){}
+    if(!data){                                             // migrace ze staré jednoplaylistové verze
+      let old; try{ old=JSON.parse(localStorage.getItem('calcamp.playlist')||'null'); }catch(e){}
+      if(old && old.items && old.items.length)
+        data={ playlists:[{name:'Playlist 1', idx:old.idx|0, items:old.items}], active:0, time:old.time||0 };
     }
-    if(!list.length) return;
-    renderPlaylist();
-    const i=Math.min(Math.max(0, data.idx|0), list.length-1);
-    load(i, false);                                        // načti poslední skladbu, ale nepřehrávej
-    const t=data.time||0;
-    if(t>0){ audio.addEventListener('loadedmetadata', function once(){
-      try{ audio.currentTime=Math.min(t, (audio.duration||t)); }catch(e){}
-      audio.removeEventListener('loadedmetadata', once); }); }
+    if(!data || !data.playlists || !data.playlists.length) return;
+    playlists = data.playlists.map(pl=>({ name: pl.name||'Playlist', idx: pl.idx|0,
+      items:(pl.items||[]).filter(it=>it&&it.path).map(it=>({title:it.title, path:it.path})) }));
+    ensureDefault();
+    activePl = Math.min(Math.max(0, data.active|0), playlists.length-1);
+    list = playlists[activePl].items;
+    renderTabs(); renderPlaylist();
+    const startIdx = Math.min(Math.max(-1, playlists[activePl].idx|0), list.length-1);
+    if(startIdx>=0 && window.win && window.win.readFile){
+      await load(startIdx, false);                         // načti poslední skladbu, ale nepřehrávej
+      const t=data.time||0;
+      if(t>0){ audio.addEventListener('loadedmetadata', function once(){
+        try{ audio.currentTime=Math.min(t, (audio.duration||t)); }catch(e){}
+        audio.removeEventListener('loadedmetadata', once); }); }
+    }
   }
+  ensureDefault(); renderTabs(); renderPlaylist();          // výchozí stav před obnovou
 
   // ---- fit the OS window exactly around the content ----
   function fitWindow(){

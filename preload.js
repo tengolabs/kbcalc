@@ -10,4 +10,6 @@ contextBridge.exposeInMainWorld('win', {
   getPath: (file) => { try { return webUtils.getPathForFile(file); } catch (e) { return (file && file.path) || ''; } },
   // přečtení souboru z disku po restartu -> Uint8Array
   readFile: (p) => ipcRenderer.invoke('fs:read', p),
+  // drag&drop: rozbal cesty (soubor/složku) na seznam skladeb
+  expand: (paths) => ipcRenderer.invoke('fs:expand', paths),
 });
