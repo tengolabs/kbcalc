@@ -1,3 +1,8 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>CalcAmp</title>
 <style>
   :root{
@@ -231,6 +236,8 @@
   /* zvýraznění při přetahování souborů/složek */
   body.dragging #calc, body.dragging .amp{ outline:2px dashed var(--lcd); outline-offset:-2px; }
 </style>
+</head>
+<body>
 
 <div id="app">
   <!-- CALCULATOR -->
@@ -395,9 +402,12 @@
     if(/^[0-9]$/.test(k)){ cur = freshNum ? k : (cur==='0'?k:cur+k); freshNum=false; }
     else if(k==='.'){ if(freshNum){cur='0.';freshNum=false;} else if(!cur.includes('.')) cur+='.'; }
     else if(k==='C'){ cur='0'; prev=null; op=null; freshNum=true; }
-    else if(k==='back'){ cur = freshNum ? cur : (cur.length>1?cur.slice(0,-1):'0'); if(cur==='0')freshNum=true; }
+    else if(k==='back'){ if(!freshNum){ cur = cur.length>1?cur.slice(0,-1):'0'; if(cur==='-'||cur==='')cur='0'; } if(cur==='0')freshNum=true; }
     else if(k==='neg'){ cur = (cur.startsWith('-')?cur.slice(1):'-'+cur); if(cur==='-0')cur='0'; }
-    else if(k==='%'){ cur = fmt((+cur)/100); }
+    else if(k==='%'){                                   // kontextové % jako Win kalkulačka:
+      // +/− → procento z prvního čísla (200+10%=220); ×/÷ a bez operace → prosté /100
+      cur = (op==='+'||op==='-') ? fmt((+prev)*(+cur)/100) : fmt((+cur)/100);
+      freshNum=true; }
     else if(['+','-','*','/'].includes(k)){
       if(op!==null && !freshNum){ const r=calc(prev,cur,op); cur=fmt(r); prev=cur; }
       else prev=cur;
@@ -438,6 +448,7 @@
   // `list` je vždy odkaz na items aktivního playlistu, `idx` = skladba v něm.
   let playlists = [], activePl = 0, list = [], idx = -1, playing = false;
   let curUrlTrack = null;   // kvůli uvolňování lazy blobů z paměti
+  let loadFailStreak = 0;   // pojistka proti nekonečné smyčce při přeskakování mrtvých souborů
 
   const miniTitle = document.getElementById('miniTitle');
   const miniBar = document.getElementById('miniBar');
@@ -529,7 +540,9 @@
     list.forEach((t,i)=>{
       const li=document.createElement('li');
       if(i===idx) li.className='active';
-      li.innerHTML='<span class="num">'+String(i+1).padStart(2,'0')+'</span>'+t.title;
+      const num=document.createElement('span'); num.className='num'; num.textContent=String(i+1).padStart(2,'0');
+      li.appendChild(num);
+      li.appendChild(document.createTextNode(t.title));   // název souboru NIKDY přes innerHTML (XSS ze zlého názvu MP3)
       li.onclick=()=>{ load(i,true); };
       plEl.appendChild(li);
     });
@@ -545,15 +558,28 @@
       try{ const bytes=await window.win.readFile(t.path);
         if(bytes){ t.url=URL.createObjectURL(new Blob([bytes])); t._lazy=true; } }catch(e){}
     }
-    // uvolni předchozí lazy blob (drž v paměti max jednu skladbu naráz)
-    if(curUrlTrack && curUrlTrack!==t && curUrlTrack._lazy && curUrlTrack.url){
-      URL.revokeObjectURL(curUrlTrack.url); curUrlTrack.url=null;
+    // uvolni předchozí object URL: lazy bloby (v RAM) vždy; File-URL jen když jde znovu načíst z disku
+    if(curUrlTrack && curUrlTrack!==t && curUrlTrack.url){
+      const canReload = curUrlTrack.path && window.win && window.win.readFile;
+      if(curUrlTrack._lazy || canReload){ URL.revokeObjectURL(curUrlTrack.url); curUrlTrack.url=null; }
     }
     curUrlTrack=t;
     if(t.url) audio.src=t.url; else audio.removeAttribute('src');
-    setTitle((i+1)+'. '+t.title);
     renderTabs(); renderPlaylist();
     savePlaylist();
+    // soubor nedostupný (smazaný/přesunutý): nezablokuj playlist — přeskoč na další, s pojistkou proti smyčce
+    if(!t.url){
+      if(autoplay && list.length>1 && loadFailStreak < list.length-1){
+        loadFailStreak++;
+        setTitle('⚠ '+t.title+' — soubor nedostupný, přeskakuji…');
+        return load((i+1)%list.length, true);
+      }
+      setTitle(autoplay ? '⚠ žádný přehratelný soubor' : (i+1)+'. '+t.title+' (nedostupný)');
+      loadFailStreak=0;
+      return;
+    }
+    loadFailStreak=0;
+    setTitle((i+1)+'. '+t.title);
     if(autoplay) play();
   }
 
@@ -904,3 +930,5 @@
 
 })();
 </script>
+</body>
+</html>
