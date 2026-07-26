@@ -29,10 +29,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Nahraj artefakty
+      # Na TAG se instalátory připnou k Release (viz krok níž) — ten se do kvóty
+      # Actions storage NEpočítá. Artefakt by byl druhá kopie těch samých souborů
+      # a právě ta kvótu vyčerpala (3 buildy Electronu = ~1,5 GB proti limitu 0,5 GB).
+      # Artefakty tedy jen pro RUČNÍ spuštění (workflow_dispatch), kde žádný
+      # Release nevzniká, a s krátkou retencí.
+      - name: Nahraj artefakty (jen ruční spuštění)
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         uses: actions/upload-artifact@v4
         with:
           name: calcamp-${{ matrix.os }}
+          retention-days: 7
           if-no-files-found: ignore
           path: |
             dist/*.AppImage
