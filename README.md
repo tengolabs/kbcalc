@@ -24,6 +24,8 @@ with a real-time visualizer.
   *only* the calculator, with a mini play/next control in the bottom bar.
 - **Mini notepad** (`✎`): a small auto-saved scratchpad right under the
   calculator — the `⤓` chip inserts the current result at the cursor.
+- **Calculation history** (`≣`): the last 50 results with their expressions;
+  click an entry to continue calculating with it. Persisted, clearable.
 
 **Player**
 - Transport controls (prev / play–pause / stop / next / eject-to-add-files),
@@ -35,6 +37,9 @@ with a real-time visualizer.
   (60 Hz – 12 kHz, presets: Flat/Rock/Pop/Jazz/Bass+/Vocal, remembered).
 - **ID3 tags**: tracks display "Artist – Title" read from ID3v2/ID3v1
   (dependency-free parser); falls back to the file name.
+- **Podcasts** (`📡`): paste an RSS feed URL and the episodes become a new
+  playlist, streamed on demand (with seeking); the visualizer and equalizer
+  work on podcasts too. Playback position is remembered like for files.
 
   <img src="docs/player.png" width="380" alt="Player with equalizer open">
 - **Multiple named playlists**: create, inline-rename, delete, switch from the
@@ -121,6 +126,10 @@ The app follows Electron hardening practice:
   allowlist keyed by name (the renderer never passes URLs).
 - The update check runs in the main process, at most once a day, and fails
   silently offline.
+- Podcasts don't give the renderer network access either: the RSS feed is
+  fetched by the main process (http/https only, 5 MB cap) and episodes stream
+  through a custom `kbaudio://` scheme proxied by the main process, so the
+  CSP stays closed and the audio graph is not CORS-tainted.
 
 Found a vulnerability? See [SECURITY.md](SECURITY.md).
 

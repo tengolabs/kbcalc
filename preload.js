@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('win', {
   readFile: (p) => ipcRenderer.invoke('fs:read', p),
   // drag&drop: rozbal cesty (soubor/složku) na seznam skladeb
   expand: (paths) => ipcRenderer.invoke('fs:expand', paths),
+  // podcast: stažení RSS (main proces, renderer nemá síť)
+  fetchPodcast: (url) => ipcRenderer.invoke('podcast:fetch', url),
   // O aplikaci: odkazy jen přes klíč do allowlistu v main procesu
   openLink: (key) => ipcRenderer.send('app:openLink', key),
   openRelease: () => ipcRenderer.send('app:openRelease'),

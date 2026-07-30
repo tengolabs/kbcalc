@@ -1,6 +1,15 @@
-const { app, BrowserWindow, ipcMain, shell, globalShortcut, Tray, Menu, nativeImage, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, globalShortcut, Tray, Menu, nativeImage, screen,
+        protocol, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
+
+// ---------- podcasty ----------
+// Streamování epizod jde přes vlastní schéma kbaudio:// obsluhované v main
+// procesu: renderer tak NEdostane přístup k síti (CSP zůstává bez https) a
+// odpověď dostane CORS hlavičku → Web Audio graf není „tainted" a vizualizér
+// i ekvalizér fungují i u podcastů. Range se předává → funguje seek.
+protocol.registerSchemesAsPrivileged([{ scheme: 'kbaudio',
+  privileges: { standard: true, secure: true, stream: true, corsEnabled: true } }]);
 
 // ---------- zapamatování pozice okna ----------
 const winStateFile = () => path.join(app.getPath('userData'), 'window-state.json');
@@ -138,6 +147,20 @@ function buildTrayMenu() {
 ipcMain.on('app:lang', (e, l) => { trayLang = l === 'en' ? 'en' : 'cs'; buildTrayMenu(); });
 
 app.whenReady().then(() => {
+  protocol.handle('kbaudio', async (req) => {
+    try {
+      const target = new URL(req.url).searchParams.get('u') || '';
+      const tu = new URL(target);
+      if (!/^https?:$/.test(tu.protocol)) return new Response('', { status: 403 });
+      const headers = {};
+      const range = req.headers.get('Range');
+      if (range) headers.Range = range;
+      const r = await net.fetch(tu.href, { headers, redirect: 'follow' });
+      const h = new Headers(r.headers);
+      h.set('Access-Control-Allow-Origin', '*');
+      return new Response(r.body, { status: r.status, headers: h });
+    } catch (e) { return new Response('', { status: 502 }); }
+  });
   createWindow();
   // media klávesy fungují, i když je appka na pozadí
   for (const [acc, ch] of [['MediaPlayPause', 'playpause'], ['MediaNextTrack', 'next'],
@@ -226,6 +249,28 @@ ipcMain.handle('fs:expand', async (e, paths) => {
     } catch (err) { /* nedostupnou cestu přeskoč */ }
   }
   return out;
+});
+
+// Stažení RSS feedu podcastu (XML parsuje renderer přes inertní DOMParser).
+// Jen http(s), limit 5 MB — renderer přes tenhle kanál nikdy nedostane
+// nic jiného než text feedu.
+ipcMain.handle('podcast:fetch', async (e, url) => {
+  try {
+    const u = new URL(String(url));
+    if (!/^https?:$/.test(u.protocol)) return { error: 'bad-url' };
+    const r = await net.fetch(u.href, { redirect: 'follow' });
+    if (!r.ok) return { error: 'http-' + r.status };
+    const reader = r.body.getReader();
+    const chunks = []; let recd = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      recd += value.length;
+      if (recd > 5e6) { reader.cancel(); return { error: 'too-big' }; }
+      chunks.push(value);
+    }
+    return { xml: Buffer.concat(chunks).toString('utf8') };
+  } catch (err) { return { error: 'network' }; }
 });
 
 ipcMain.on('app:openLink', (e, key) => {

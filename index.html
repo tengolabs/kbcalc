@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: kbaudio:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>kbCalc</title>
 <link rel="stylesheet" href="app.css">
 </head>
@@ -15,6 +15,7 @@
       <span>kb<b>CALC</b></span>
       <span class="wc">
         <span id="clock">88:88</span>
+        <button class="wcbtn" id="histBtn" data-i18n-title="ttHist">≣</button>
         <button class="wcbtn" id="notesBtn" data-i18n-title="ttNotes">✎</button>
         <button class="wcbtn" id="infoBtn" data-i18n-title="ttInfo">ⓘ</button>
         <button class="wcbtn" id="pinBtn" data-i18n-title="ttPin">◉</button>
@@ -51,6 +52,15 @@
       <button class="key" data-k="0">0</button>
       <button class="key" data-k=".">.</button>
       <button class="key eq" data-k="=">=</button>
+    </div>
+
+    <!-- historie výpočtů -->
+    <div id="histPanel" hidden>
+      <div class="histHead">
+        <span class="histTitle" data-i18n="histTitle">HISTORIE</span>
+        <span id="histClear" data-i18n-title="ttHistClear">🗑</span>
+      </div>
+      <ul id="histList"></ul>
     </div>
 
     <!-- now-playing mini bar -->
@@ -142,6 +152,7 @@
         <div class="plhead">
           <span id="plSwitch" data-i18n-title="ttPlSwitch">▤ <b id="plName">Playlist 1</b> <i id="plCount">(0)</i> <span class="caret">▾</span></span>
           <span class="plActions">
+            <span id="plPodcast" data-i18n-title="ttPodcast">📡</span>
             <span id="plNew" data-i18n-title="ttPlNew">＋</span>
             <span id="plRename" data-i18n-title="ttPlRename">✎</span>
             <span id="plDel" data-i18n-title="ttPlDel">🗑</span>

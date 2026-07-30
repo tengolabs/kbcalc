@@ -23,6 +23,8 @@ v dolní liště vedle ní vysune plnohodnotný přehrávač s vizualizérem.
   s mini ovládáním přehrávání v dolní liště.
 - **Mini zápisník** (`✎`): malý samoukládací blok hned pod kalkulačkou —
   chip `⤓` vloží aktuální výsledek na pozici kurzoru.
+- **Historie výpočtů** (`≣`): posledních 50 výsledků i s výrazy; kliknutím
+  na záznam s ním počítáš dál. Persistovaná, jde smazat.
 
 **Přehrávač**
 - Transport (předchozí / play–pauza / stop / další / eject = přidat soubory)
@@ -34,6 +36,9 @@ v dolní liště vedle ní vysune plnohodnotný přehrávač s vizualizérem.
   (60 Hz – 12 kHz, presety Flat/Rock/Pop/Jazz/Bass+/Vocal, pamatuje se).
 - **ID3 tagy**: skladby zobrazují „Interpret – Název" z ID3v2/ID3v1
   (parser bez závislostí); jinak název souboru.
+- **Podcasty** (`📡`): vlož URL RSS kanálu a epizody se stanou novým
+  playlistem — streamují se na vyžádání (funguje i posun), vizualizér
+  a ekvalizér běží i u podcastů. Pozice přehrávání se pamatuje.
 
   <img src="docs/player.png" width="380" alt="Přehrávač s otevřeným ekvalizérem">
 - **Víc pojmenovaných playlistů**: nový, inline přejmenování, smazání,
@@ -108,6 +113,10 @@ všechny tři OS na vlastních runnerech; tag `v*` vytvoří Release s balíčky
   dialogu O aplikaci se otevírají v systémovém prohlížeči a jen z pevného
   allowlistu podle klíče (renderer nikdy nepředává URL).
 - Kontrola verze běží v main procesu, max 1× denně, offline mlčky selže.
+- Ani podcasty nedávají rendereru síť: RSS stahuje main proces (jen
+  http/https, limit 5 MB) a epizody streamují přes vlastní schéma
+  `kbaudio://` proxované main procesem — CSP zůstává zavřená a audio
+  graf není CORS-tainted.
 
 Našli jste zranitelnost? Viz [SECURITY.md](SECURITY.md).
 

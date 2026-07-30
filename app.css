@@ -293,3 +293,22 @@
     color:var(--lcd); font-family:"Consolas",monospace; font-size:12px;
     padding:8px 10px; outline:none; -webkit-app-region:no-drag; }
   #notesArea::placeholder{ color:var(--lcd-dim); opacity:.8; }
+
+  /* ---------- historie výpočtů ---------- */
+  #histPanel{ margin-top:12px; background:linear-gradient(180deg,#071206,#0a1a0d);
+    border:1px solid #000; border-radius:8px;
+    box-shadow:inset 0 2px 8px rgba(0,0,0,.8); padding:6px 8px; }
+  #histPanel[hidden]{ display:none; }
+  .histHead{ display:flex; justify-content:space-between; align-items:center;
+    border-bottom:1px solid #03260f; padding-bottom:4px; margin-bottom:2px; }
+  .histTitle{ font-family:"Consolas",monospace; font-size:9px; letter-spacing:2px; color:var(--lcd-dim); }
+  #histClear{ cursor:pointer; font-size:11px; opacity:.6; }
+  #histClear:hover{ opacity:1; }
+  #histList{ list-style:none; max-height:120px; overflow-y:auto; }
+  #histList li{ display:flex; justify-content:space-between; gap:8px; cursor:pointer;
+    font-family:"Consolas",monospace; font-size:12px; padding:3px 2px; border-radius:4px; }
+  #histList li:hover{ background:rgba(43,255,119,.08); }
+  #histList li .he{ color:var(--lcd-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #histList li .hr{ color:var(--lcd); font-weight:600; text-shadow:0 0 6px var(--lcd-dim); }
+  #histList li.empty{ color:var(--lcd-dim); cursor:default; justify-content:center; }
+  #histList li.empty:hover{ background:none; }

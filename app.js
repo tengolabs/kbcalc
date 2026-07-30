@@ -17,6 +17,11 @@
       ttShuffle:'Náhodné přehrávání', ttEq:'Ekvalizér',
       ttNotes:'Poznámky', ttNotesIns:'Vložit aktuální výsledek do poznámky',
       notesPh:'Rychlá poznámka… (ukládá se sama)',
+      ttHist:'Historie výpočtů', ttHistClear:'Smazat historii', histTitle:'HISTORIE',
+      histEmpty:'— zatím žádné výpočty —',
+      ttPodcast:'Přidat podcast (RSS)', podcastPh:'URL RSS podcastu… (Enter)',
+      podLoading:'Načítám podcast…', podErr:'⚠ podcast se nepodařilo načíst',
+      podEmpty:'⚠ v kanálu nejsou žádné audio epizody',
       repOff:'Opakování: vypnuto', repAll:'Opakování: celý playlist', repOne:'Opakování: jedna skladba',
       vizEnlarge:'⛶ ZVĚTŠIT', vizHint:'klik = změnit styl · Esc = návrat',
       marqueeHint:'KBCALC · nahraj MP3 přes tlačítko ⏏ a spusť přehrávání',
@@ -48,6 +53,11 @@
       ttShuffle:'Shuffle', ttEq:'Equalizer',
       ttNotes:'Notes', ttNotesIns:'Insert the current result into the note',
       notesPh:'Quick note… (auto-saved)',
+      ttHist:'Calculation history', ttHistClear:'Clear history', histTitle:'HISTORY',
+      histEmpty:'— no calculations yet —',
+      ttPodcast:'Add a podcast (RSS)', podcastPh:'Podcast RSS URL… (Enter)',
+      podLoading:'Loading podcast…', podErr:'⚠ could not load the podcast',
+      podEmpty:'⚠ no audio episodes in the feed',
       repOff:'Repeat: off', repAll:'Repeat: whole playlist', repOne:'Repeat: one track',
       vizEnlarge:'⛶ ENLARGE', vizHint:'click = change style · Esc = back',
       marqueeHint:'KBCALC · load MP3s via the ⏏ button and hit play',
@@ -88,6 +98,7 @@
     setStyleLabels();
     renderPlaylist();
     updateModes();
+    if(!histPanel.hidden) histRender();
     if(idx<0) setTitle(tr('noTrack'));
     if(window.win && window.win.notifyLang) window.win.notifyLang(l);   // tray menu
   }
@@ -137,10 +148,53 @@
       op=k; freshNum=true;
     }
     else if(k==='='){
-      if(op!==null){ const r=calc(prev,cur,op); cur=fmt(r); prev=null; op=null; freshNum=true; }
+      if(op!==null){
+        const ex=group(prev)+' '+opSym[op]+' '+group(cur);
+        const r=calc(prev,cur,op); cur=fmt(r); prev=null; op=null; freshNum=true;
+        histAdd(ex, cur);
+      }
     }
     render();
   }
+
+  /* ---------- HISTORIE VÝPOČTŮ ---------- */
+  let hist=[];
+  try{ const h=JSON.parse(localStorage.getItem('kbcalc.history')||'null');
+    if(Array.isArray(h)) hist=h.filter(x=>x&&typeof x.e==='string'&&typeof x.r==='string').slice(0,50); }catch(e){}
+  const histPanel=document.getElementById('histPanel');
+  const histList=document.getElementById('histList');
+  const histBtn=document.getElementById('histBtn');
+  const histSave=()=>{ try{ localStorage.setItem('kbcalc.history', JSON.stringify(hist)); }catch(e){} };
+  function histRender(){
+    histList.innerHTML='';
+    if(!hist.length){
+      const li=document.createElement('li'); li.className='empty'; li.textContent=tr('histEmpty');
+      histList.appendChild(li); return;
+    }
+    hist.forEach(h=>{
+      const li=document.createElement('li');
+      const e1=document.createElement('span'); e1.className='he'; e1.textContent=h.e+' =';
+      const e2=document.createElement('span'); e2.className='hr'; e2.textContent=group(h.r);
+      li.appendChild(e1); li.appendChild(e2);
+      li.onclick=()=>{ cur=h.r; freshNum=true; render(); };   // klik = použít výsledek dál
+      histList.appendChild(li);
+    });
+  }
+  function histAdd(e,r){
+    hist.unshift({e,r}); if(hist.length>50) hist.length=50;
+    histSave(); if(!histPanel.hidden) histRender();
+  }
+  histBtn.onclick=()=>{
+    histPanel.hidden=!histPanel.hidden;
+    histBtn.classList.toggle('on', !histPanel.hidden);
+    try{ localStorage.setItem('kbcalc.histOpen', histPanel.hidden?'0':'1'); }catch(e){}
+    if(!histPanel.hidden) histRender();
+    fitWindow();
+  };
+  document.getElementById('histClear').onclick=()=>{ hist=[]; histSave(); histRender(); };
+  try{ if(localStorage.getItem('kbcalc.histOpen')==='1'){
+    histPanel.hidden=false; histBtn.classList.add('on'); histRender();
+  } }catch(e){}
 
   document.getElementById('keys').addEventListener('click', e=>{
     const b=e.target.closest('.key'); if(b) press(b.dataset.k);
@@ -364,6 +418,10 @@
   async function load(i, autoplay){
     if(i<0||i>=list.length) return;
     idx=i; const t=list[i];
+    // podcastové epizody streamují přes kbaudio:// (main proces, CORS ok → vizualizér žije)
+    if(!t.url && t.remote){
+      t.url='kbaudio://play/?u='+encodeURIComponent(t.remote);
+    }
     // lazy: soubory přetažené/obnovené mají jen path → načti bytes z disku až teď
     if(!t.url && t.path && window.win && window.win.readFile){
       try{ const bytes=await window.win.readFile(t.path);
@@ -569,6 +627,48 @@
     }
   });
 
+  // ---- podcasty: RSS URL → nový playlist s epizodami (stream přes kbaudio://) ----
+  function addPodcastFlow(){
+    const nm=document.getElementById('plName');
+    if(!nm || document.getElementById('podUrlInput') || document.getElementById('plRenameInput')) return;
+    const inp=document.createElement('input'); inp.id='podUrlInput'; inp.className='pl-rename';
+    inp.placeholder=tr('podcastPh'); nm.style.display='none'; nm.after(inp); inp.focus();
+    let done=false;
+    const close=()=>{ if(done) return; done=true; inp.remove(); nm.style.display=''; };
+    inp.onkeydown=async e=>{
+      e.stopPropagation();
+      if(e.key==='Escape'){ close(); return; }
+      if(e.key!=='Enter') return;
+      const url=inp.value.trim(); close();
+      if(!url) return;
+      setTitle(tr('podLoading'));
+      const res = window.win && window.win.fetchPodcast ? await window.win.fetchPodcast(url) : null;
+      if(!res || res.error || !res.xml){ setTitle(tr('podErr')); return; }
+      try{
+        const doc=new DOMParser().parseFromString(res.xml,'text/xml');   // inertní parser, žádný innerHTML
+        const chTitle=(doc.querySelector('channel > title')?.textContent||'Podcast').trim()||'Podcast';
+        const eps=[];
+        for(const it of doc.querySelectorAll('item')){
+          if(eps.length>=100) break;
+          const enc=it.querySelector('enclosure');
+          const u=enc ? (enc.getAttribute('url')||'') : '';
+          const ty=enc ? (enc.getAttribute('type')||'') : '';
+          if(!/^https?:\/\//i.test(u)) continue;
+          if(ty && !/audio|octet/i.test(ty)) continue;
+          const et=(it.querySelector('title')?.textContent||'').trim();
+          eps.push({ title: et || ('epizoda '+(eps.length+1)), remote: u });
+        }
+        if(!eps.length){ setTitle(tr('podEmpty')); return; }
+        const j=addPlaylist(chTitle, eps);
+        playlists[j].feed=url;                     // pro budoucí obnovení kanálu
+        switchPlaylist(j); setOpen(true);
+      }catch(err){ setTitle(tr('podErr')); }
+    };
+    inp.onblur=()=>close();
+    inp.onclick=e=>e.stopPropagation();
+  }
+  document.getElementById('plPodcast').onclick=e=>{ e.stopPropagation(); addPodcastFlow(); };
+
   // ---- ovládání přepínače playlistů ----
   document.getElementById('plSwitch').onclick=e=>{ e.stopPropagation();
     plMenu.classList.contains('on') ? closePlMenu() : openPlMenu(); };
@@ -583,8 +683,9 @@
     try{
       if(playlists[activePl]) playlists[activePl].idx = idx;
       const pls = playlists.map(pl=>({
-        name: pl.name, idx: pl.idx|0,
-        items: pl.items.filter(t=>t.path).map(t=>({title:t.title, path:t.path}))
+        name: pl.name, idx: pl.idx|0, ...(pl.feed?{feed:pl.feed}:{}),
+        items: pl.items.filter(t=>t.path||t.remote).map(t=>({ title:t.title,
+          ...(t.path?{path:t.path}:{}), ...(t.remote?{remote:t.remote}:{}) }))
       }));
       localStorage.setItem('kbcalc.playlists',
         JSON.stringify({ playlists:pls, active:activePl, time:audio.currentTime||0 }));
@@ -602,7 +703,9 @@
     }
     if(!data || !data.playlists || !data.playlists.length) return;
     playlists = data.playlists.map(pl=>({ name: pl.name||'Playlist', idx: pl.idx|0,
-      items:(pl.items||[]).filter(it=>it&&it.path).map(it=>({title:it.title, path:it.path})) }));
+      ...(pl.feed?{feed:pl.feed}:{}),
+      items:(pl.items||[]).filter(it=>it&&(it.path||it.remote)).map(it=>({ title:it.title,
+        ...(it.path?{path:it.path}:{}), ...(it.remote?{remote:it.remote}:{}) })) }));
     ensureDefault();
     activePl = Math.min(Math.max(0, data.active|0), playlists.length-1);
     list = playlists[activePl].items;
