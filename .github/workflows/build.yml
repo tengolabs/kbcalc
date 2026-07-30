@@ -32,17 +32,17 @@ jobs:
       - name: Build instalátory
         run: npm run dist -- --publish never
 
-      # Artefakty JEN u ručního běhu (workflow_dispatch) — na tagu jde totéž do
-      # Release a dvojí uložení dřív přeteklo Actions storage kvótu (artefakty
-      # se do kvóty počítají, release assety ne).
-      - name: Nahraj artefakty (jen ruční běh)
+      # Ruční běh → DRAFT release (tag test-build se u draftu reálně nevytvoří).
+      # Záměrně NE upload-artifact: artefakty se počítají do Actions storage
+      # kvóty (0,5 GB free — už dvakrát přetekla), release assety ne.
+      - name: Testovací draft release (jen ruční běh)
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          name: kbcalc-${{ matrix.os }}
-          retention-days: 7
-          if-no-files-found: ignore
-          path: |
+          draft: true
+          name: test-build ${{ matrix.os }}
+          tag_name: test-build
+          files: |
             dist/*.AppImage
             dist/*.deb
             dist/*.exe
