@@ -2,7 +2,7 @@
   "name": "calcamp",
   "version": "1.0.2",
   "description": "Plovoucí kalkulačka s vestavěným MP3 přehrávačem ve stylu Winampu (Electron, cross-platform)",
-  "author": "Richard <tengosro@gmail.com>",
+  "author": "Richard <info@killbottleneck.com>",
   "homepage": "https://github.com/tengosro/calcamp",
   "license": "MIT",
   "main": "main.js",
@@ -14,7 +14,7 @@
     "dist:mac": "electron-builder --mac"
   },
   "devDependencies": {
-    "electron": "^32.2.0",
+    "electron": "^43.2.0",
     "electron-builder": "^25.1.8"
   },
   "build": {
@@ -33,16 +33,25 @@
       "output": "dist"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "category": "Utility",
       "icon": "build/icon.png"
     },
     "win": {
-      "target": ["nsis", "portable"],
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "icon": "build/icon.png"
     },
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "category": "public.app-category.utilities",
       "icon": "build/icon.png"
     },
@@ -50,5 +59,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     }
-  }
+  },
+  "contributors": [
+    "Claude Fable 5 (Anthropic)"
+  ]
 }

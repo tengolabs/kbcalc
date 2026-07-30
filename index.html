@@ -15,6 +15,7 @@
       <span>CALC<b>AMP</b></span>
       <span class="wc">
         <span id="clock">88:88</span>
+        <button class="wcbtn" id="infoBtn" title="O aplikaci">ⓘ</button>
         <button class="wcbtn" id="pinBtn" title="Vždy navrchu">◉</button>
         <button class="wcbtn" id="minBtn" title="Minimalizovat">–</button>
         <button class="wcbtn close" id="closeBtn" title="Zavřít">✕</button>
@@ -125,6 +126,35 @@
 <input type="file" id="fileInput" accept="audio/*,.mp3,.m4a,.ogg,.wav,.flac" multiple hidden>
 <audio id="audio" crossorigin="anonymous"></audio>
 <div id="plMenu"></div>
+
+<!-- O aplikaci -->
+<div id="about">
+  <div class="about-card">
+    <div class="about-head">
+      <span>◈ O APLIKACI CALCAMP</span>
+      <span class="x" id="aboutClose" title="Zavřít">✕</span>
+    </div>
+    <p class="about-desc">Plovoucí kalkulačka s vestavěným MP3 přehrávačem ve stylu
+    Winampu. Ukázková open source aplikace (MIT) od tvůrců killBottleneck —
+    stáhněte, upravte, používejte i komerčně.</p>
+    <div class="about-links">
+      <button class="about-link" data-link="github"><span class="ic">◆</span>
+        <span><b>GitHub</b><i>zdrojový kód, hlášení chyb, nové verze</i></span></button>
+      <button class="about-link" data-link="web"><span class="ic">🎯</span>
+        <span><b>killbottleneck.com</b><i>nástroje proti úzkým hrdlům od stejných autorů</i></span></button>
+      <button class="about-link" data-link="youtube"><span class="ic yt">▶</span>
+        <span><b>YouTube kanál</b><i>návody, novinky a AI experimenty od autorů</i></span></button>
+      <button class="about-link" data-link="discord"><span class="ic">💬</span>
+        <span><b>Komunita na Discordu</b><i>otázky, nápady, pomoc</i></span></button>
+      <button class="about-link update" id="aboutUpdate" hidden><span class="ic">⬆</span>
+        <span><b id="aboutUpdateTitle"></b><i id="aboutUpdateSub"></i></span></button>
+    </div>
+    <div class="about-foot">
+      <span id="aboutVersion"></span>
+      <span>Autoři: Richard · Claude Fable 5</span>
+    </div>
+  </div>
+</div>
 
 <!-- fullscreen vizualizér -->
 <div id="vizFull">

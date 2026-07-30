@@ -1,6 +1,33 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+
+// ---------- O aplikaci: odkazy + kontrola nové verze ----------
+// Odkazy se otevírají VÝHRADNĚ v systémovém prohlížeči a jen z tohoto allowlistu —
+// renderer posílá klíč, nikdy URL (i při XSS nejde otevřít nic cizího).
+const LINKS = {
+  github: 'https://github.com/tengosro/calcamp',   // TODO při zveřejnění: tengolabs/<finální název>
+  web: 'https://killbottleneck.com',
+  youtube: 'https://www.youtube.com/@ctrlaltaicz',
+  discord: 'https://discord.gg/dkxMdVKwXw',
+};
+const UPDATE_REPO = 'tengosro/calcamp';            // TODO při zveřejnění: tengolabs/<finální název>
+let releaseUrl = '';                               // jen z poslední ověřené odpovědi GitHubu
+
+// "v1.2" vs "1.10" — porovnávají se číselné části (stejná logika jako killBottleneck)
+function verParts(tag) {
+  const m = String(tag || '').match(/\d+(?:\.\d+)*/);
+  return m ? m[0].split('.').map(Number) : null;
+}
+function isNewer(latest, current) {
+  const a = verParts(latest), b = verParts(current);
+  if (!a || !b) return false;
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const x = a[i] || 0, y = b[i] || 0;
+    if (x !== y) return x > y;
+  }
+  return false;
+}
 
 // GPU workaround jen pro Linux: v některých prostředích (např. bez plného
 // GPU stacku / průhledné okno) padá GPU proces -> FATAL a shodí okno.
@@ -119,6 +146,41 @@ ipcMain.handle('fs:expand', async (e, paths) => {
     } catch (err) { /* nedostupnou cestu přeskoč */ }
   }
   return out;
+});
+
+ipcMain.on('app:openLink', (e, key) => {
+  const url = LINKS[key];
+  if (url) shell.openExternal(url);
+});
+ipcMain.on('app:openRelease', () => {
+  if (releaseUrl) shell.openExternal(releaseUrl);
+});
+// Kontrola nové verze: ptá se GitHub releases, max 1× denně (cache v userData),
+// všechna selhání mlčí (bez sítě / privátní repo / limit API = prostě se nic nehlásí).
+// Nikam nic neodesíláme — žádná telemetrie, jen anonymní dotaz na poslední release.
+ipcMain.handle('app:versionInfo', async () => {
+  const version = app.getVersion();
+  const cacheFile = path.join(app.getPath('userData'), 'update-check.json');
+  let rec = null;
+  try {
+    const c = JSON.parse(await fs.promises.readFile(cacheFile, 'utf8'));
+    if (c && c.repo === UPDATE_REPO && Date.now() - c.at < 24 * 3600e3) rec = c;
+  } catch {}
+  if (!rec) {
+    try {
+      const r = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`,
+        { headers: { Accept: 'application/vnd.github+json' } });
+      if (r.ok) {
+        const rel = await r.json();
+        rec = { at: Date.now(), repo: UPDATE_REPO, tag: rel.tag_name || '', url: rel.html_url || '' };
+        await fs.promises.writeFile(cacheFile, JSON.stringify(rec)).catch(() => {});
+      }
+    } catch {}
+  }
+  if (rec && typeof rec.url === 'string' &&
+      rec.url.startsWith(`https://github.com/${UPDATE_REPO}/releases`)) releaseUrl = rec.url;
+  const latest = rec ? rec.tag : '';
+  return { version, latest, hasUpdate: isNewer(latest, version) };
 });
 
 app.on('window-all-closed', () => app.quit());

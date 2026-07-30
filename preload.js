@@ -12,4 +12,8 @@ contextBridge.exposeInMainWorld('win', {
   readFile: (p) => ipcRenderer.invoke('fs:read', p),
   // drag&drop: rozbal cesty (soubor/složku) na seznam skladeb
   expand: (paths) => ipcRenderer.invoke('fs:expand', paths),
+  // O aplikaci: odkazy jen přes klíč do allowlistu v main procesu
+  openLink: (key) => ipcRenderer.send('app:openLink', key),
+  openRelease: () => ipcRenderer.send('app:openRelease'),
+  versionInfo: () => ipcRenderer.invoke('app:versionInfo'),
 });

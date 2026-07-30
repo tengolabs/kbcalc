@@ -56,6 +56,8 @@
   window.addEventListener('keydown', e=>{
     const vf=document.getElementById('vizFull');
     if(vf && vf.classList.contains('on')) return;   // ve fullscreen vizualizéru klávesy neovládají kalkulačku
+    const ab=document.getElementById('about');
+    if(ab && ab.classList.contains('on')){ if(e.key==='Escape') ab.classList.remove('on'); return; }
     const map={'Enter':'=','=':'=','Backspace':'back','Escape':'C','c':'C','C':'C','%':'%'};
     if(/^[0-9]$/.test(e.key)) press(e.key);
     else if('+-*/'.includes(e.key)) press(e.key);
@@ -558,5 +560,28 @@
     else { cancelAnimationFrame(bigReq); vizFull.classList.remove('on'); }
   });
   window.addEventListener('keydown', e=>{ if(e.key==='Escape' && vizFull.classList.contains('on')) exitFull(); });
+
+  /* ---------- O APLIKACI ---------- */
+  const about = document.getElementById('about');
+  document.getElementById('infoBtn').addEventListener('click', async () => {
+    about.classList.add('on');
+    try {
+      const v = await window.win.versionInfo();
+      document.getElementById('aboutVersion').textContent = v.version ? 'Verze ' + v.version : '';
+      const up = document.getElementById('aboutUpdate');
+      if (v.hasUpdate) {
+        document.getElementById('aboutUpdateTitle').textContent = 'Je dostupná verze ' + v.latest;
+        document.getElementById('aboutUpdateSub').textContent =
+          'Máte ' + v.version + ' — klikněte pro poznámky k vydání';
+        up.hidden = false;
+      } else up.hidden = true;
+    } catch (e) { /* bez IPC (prohlížečový fallback) dialog prostě nemá verzi */ }
+  });
+  document.getElementById('aboutClose').addEventListener('click', () => about.classList.remove('on'));
+  about.addEventListener('click', e => { if (e.target === about) about.classList.remove('on'); });
+  document.querySelectorAll('.about-link[data-link]').forEach(b =>
+    b.addEventListener('click', () => window.win && window.win.openLink(b.dataset.link)));
+  document.getElementById('aboutUpdate').addEventListener('click',
+    () => window.win && window.win.openRelease());
 
 })();

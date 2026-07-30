@@ -43,6 +43,11 @@ with a real-time visualizer.
 
 **Window**
 - Always-on-top toggle (`◉`), minimize, close — all custom, no OS title bar.
+- About dialog (`ⓘ`) with project links and the app version. Once a day the app
+  anonymously asks the GitHub Releases API whether a newer version exists and
+  offers a link to the release notes — no telemetry, nothing is ever uploaded.
+
+  <img src="docs/about.png" width="380" alt="About dialog">
 
 > **Note:** the UI is currently in Czech.
 
@@ -95,8 +100,21 @@ The app follows Electron hardening practice:
   file-system calls used by playlists. `fs:read` only serves real audio files
   (extension allow-list, symlinks resolved, regular files only) and
   `fs:expand` never follows symlinks and caps recursion depth.
-- A restrictive CSP is set (`connect-src 'self'`; media only via `blob:`).
-- Navigation and `window.open` are denied in the main process.
+- A restrictive CSP is set (`connect-src 'self'`, no `unsafe-inline`; media
+  only via `blob:`) — the renderer has no network access at all.
+- Navigation and `window.open` are denied in the main process. External links
+  from the About dialog open in the system browser and only from a fixed
+  allowlist keyed by name (the renderer never passes URLs).
+- The update check runs in the main process, at most once a day, and fails
+  silently offline.
+
+Found a vulnerability? See [SECURITY.md](SECURITY.md).
+
+## Authors
+
+**Richard** and **Claude Fable 5** (Anthropic) — from the makers of
+[killBottleneck](https://killbottleneck.com). Tutorials, news and AI
+experiments on YouTube: [@ctrlaltaicz](https://www.youtube.com/@ctrlaltaicz).
 
 ## License
 

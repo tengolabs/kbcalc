@@ -40,6 +40,11 @@ v dolní liště vedle ní vysune plnohodnotný přehrávač s vizualizérem.
 
 **Okno**
 - Vždy navrchu (`◉`), minimalizace, zavření — vlastní ovládání bez OS lišty.
+- Dialog O aplikaci (`ⓘ`) s odkazy na projekt a verzí. Jednou denně se appka
+  anonymně zeptá GitHub Releases, jestli není nová verze, a nabídne odkaz na
+  poznámky k vydání — žádná telemetrie, nic se nikam neodesílá.
+
+  <img src="docs/about.png" width="380" alt="Dialog O aplikaci">
 
 ## Instalace
 
@@ -81,8 +86,20 @@ všechny tři OS na vlastních runnerech; tag `v*` vytvoří Release s balíčky
   playlisty. `fs:read` čte jen skutečné audio soubory (allow-list přípon,
   rozřešené symlinky, jen regulérní soubory), `fs:expand` nesleduje symlinky
   a má strop hloubky rekurze.
-- Restriktivní CSP (`connect-src 'self'`; média jen přes `blob:`).
-- Navigace a `window.open` jsou v main procesu zakázané.
+- Restriktivní CSP (`connect-src 'self'`, bez `unsafe-inline`; média jen přes
+  `blob:`) — renderer nemá žádný přístup k síti.
+- Navigace a `window.open` jsou v main procesu zakázané. Externí odkazy z
+  dialogu O aplikaci se otevírají v systémovém prohlížeči a jen z pevného
+  allowlistu podle klíče (renderer nikdy nepředává URL).
+- Kontrola verze běží v main procesu, max 1× denně, offline mlčky selže.
+
+Našli jste zranitelnost? Viz [SECURITY.md](SECURITY.md).
+
+## Autoři
+
+**Richard** a **Claude Fable 5** (Anthropic) — od tvůrců
+[killBottleneck](https://killbottleneck.com). Návody, novinky a AI experimenty
+na YouTube: [@ctrlaltaicz](https://www.youtube.com/@ctrlaltaicz).
 
 ## Licence
 
