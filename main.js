@@ -32,6 +32,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,       // default od Electronu 20, ale explicitně, ať to budoucí úprava omylem nevypne
     },
   });
 
@@ -58,8 +59,9 @@ ipcMain.handle('win:togglePin', () => {
 // okno se přizpůsobí přesně obsahu (sbalený vs. otevřený stav)
 ipcMain.on('win:resize', (e, w, h) => {
   if (!win) return;
-  w = Math.max(1, Math.round(w));
-  h = Math.max(1, Math.round(h));
+  if (!Number.isFinite(w) || !Number.isFinite(h)) return;   // NaN by shodil main proces
+  w = Math.min(8192, Math.max(1, Math.round(w)));
+  h = Math.min(8192, Math.max(1, Math.round(h)));
   win.setContentSize(w, h);
 });
 // fullscreen vizualizér na celou obrazovku
@@ -70,13 +72,17 @@ ipcMain.on('win:full', (e, on) => {
 const AUDIO_EXT = new Set(['.mp3','.m4a','.ogg','.oga','.wav','.flac','.aac','.opus','.wma']);
 const isAudio = f => AUDIO_EXT.has(path.extname(f).toLowerCase());
 const stripExt = f => f.replace(/\.[^.]+$/, '');
+// jen absolutní lokální cesty — UNC/síťová cesta (\\server\share) by na Windows
+// vyvolala SMB spojení (únik NTLM hashe) při pouhém načtení podvrženého playlistu
+const isLocalAbs = p => typeof p === 'string' && path.isAbsolute(p)
+  && !p.startsWith('\\\\') && !p.startsWith('//');
 
 // načtení uloženého souboru z disku po restartu.
 // BEZPEČNOST: renderer sem může (např. přes XSS ze zlého názvu MP3) poslat libovolnou cestu.
 // Čteme proto JEN reálné audio soubory — ne ~/.ssh/id_rsa, secrets.env apod. + rozřešíme symlinky.
 ipcMain.handle('fs:read', async (e, p) => {
   try {
-    if (typeof p !== 'string' || !isAudio(p)) return null;
+    if (!isLocalAbs(p) || !isAudio(p)) return null;
     const real = await fs.promises.realpath(p);
     if (!isAudio(real)) return null;
     const st = await fs.promises.stat(real);
@@ -88,6 +94,9 @@ ipcMain.handle('fs:expand', async (e, paths) => {
   const out = [];
   for (const p of (paths || [])) {
     try {
+      if (!isLocalAbs(p)) continue;
+      const lst = await fs.promises.lstat(p);
+      if (lst.isSymbolicLink()) continue;                    // symlink nesledovat ani jako kořen
       const st = await fs.promises.stat(p);
       if (st.isDirectory()) {
         const walk = async (dir, depth) => {

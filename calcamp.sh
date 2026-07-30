@@ -4,6 +4,10 @@ set -e
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ -x "$DIR/node_modules/.bin/electron" ]; then
+  # --no-sandbox jen pro DEV spouštění z node_modules: electronův chrome-sandbox
+  # tam nemá SUID bit a na distribucích s omezenými user namespaces by start
+  # spadl. Packaged buildy (AppImage/deb/exe) tento skript nepoužívají a běží
+  # se sandboxem. Neodstraňovat bez otestování `npm start` na čistém systému.
   exec "$DIR/node_modules/.bin/electron" --no-sandbox "$DIR" >/dev/null 2>&1
 fi
 

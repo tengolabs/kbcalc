@@ -1,0 +1,230 @@
+  :root{
+    --metal-hi:#4a4a4a; --metal:#2a2a2a; --metal-lo:#151515;
+    --bezel-hi:#5a5a5a; --bezel-lo:#000;
+    --lcd-bg:#0a1a0d; --lcd:#2bff77; --lcd-dim:#0f6b33;
+    --amber:#ffb43a;
+    --btn:#333; --btn-hi:#484848; --btn-lo:#1c1c1c;
+    --accent:#2bff77;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  html,body{ background:transparent; }
+  /* frameless drag regions */
+  .brand{ -webkit-app-region:drag; }
+  .amp-title{ -webkit-app-region:drag; }
+  .wcbtn, #clock, .amp-title .x,
+  .keys, .display, #nowbar, input, button, canvas, ul{ -webkit-app-region:no-drag; }
+  .wc{ display:flex; align-items:center; gap:5px; }
+  .wcbtn{ cursor:pointer; border:none; width:18px; height:18px; border-radius:5px;
+    font-size:11px; line-height:1; color:#bbb; background:#242424;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+    display:flex; align-items:center; justify-content:center; padding:0; }
+  .wcbtn:hover{ filter:brightness(1.5); }
+  .wcbtn.close:hover{ background:#c0392b; color:#fff; }
+  .wcbtn.pinned{ background:#12b34e; color:#062a12; }
+  body{
+    font-family:"Segoe UI",Tahoma,sans-serif;
+    color:#ddd;
+    display:inline-flex; align-items:flex-start; justify-content:flex-start;
+    padding:0; margin:0; gap:0;
+    -webkit-font-smoothing:antialiased; user-select:none;
+    overflow:hidden;
+  }
+  #app{ display:flex; align-items:flex-start; }   /* kalkulačka drží svoji výšku; přehrávač ji nesmí roztáhnout */
+
+  /* ============ CALCULATOR ============ */
+  #calc{
+    width:270px;
+    background:linear-gradient(160deg,var(--metal-hi),var(--metal) 30%,var(--metal-lo));
+    border-radius:16px;
+    padding:14px;
+    box-shadow:0 24px 60px rgba(0,0,0,.65),
+               inset 0 1px 0 rgba(255,255,255,.12),
+               inset 0 -2px 6px rgba(0,0,0,.6);
+    border:1px solid #000;
+    position:relative; z-index:2;
+  }
+  .brand{
+    display:flex; align-items:center; justify-content:space-between;
+    font-size:11px; letter-spacing:2px; color:#8a8a8a;
+    padding:0 4px 8px; text-transform:uppercase;
+  }
+  .brand b{color:var(--lcd); text-shadow:0 0 8px var(--lcd-dim);}
+  .display{
+    background:linear-gradient(180deg,#071206,#0a1a0d);
+    border-radius:8px; border:1px solid #000;
+    box-shadow:inset 0 2px 8px rgba(0,0,0,.8), inset 0 0 0 1px rgba(43,255,119,.06);
+    padding:10px 12px 8px; margin-bottom:12px; overflow:hidden;
+  }
+  .expr{ text-align:right; font-family:"Consolas",monospace; font-size:12px;
+    color:var(--lcd-dim); min-height:16px; letter-spacing:1px; opacity:.85;}
+  .out{ text-align:right; font-family:"Consolas",monospace; font-weight:600;
+    font-size:34px; color:var(--lcd); text-shadow:0 0 10px rgba(43,255,119,.55);
+    line-height:1.1; word-break:break-all;}
+  .keys{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .key{
+    appearance:none; border:none; cursor:pointer;
+    height:46px; border-radius:9px; font-size:18px; font-weight:600; color:#eee;
+    background:linear-gradient(180deg,var(--btn-hi),var(--btn) 55%,var(--btn-lo));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.14), 0 2px 3px rgba(0,0,0,.5);
+    transition:transform .05s, filter .1s;
+  }
+  .key:active{ transform:translateY(1px); filter:brightness(1.25); }
+  .key.op{ color:var(--accent); text-shadow:0 0 8px var(--lcd-dim); }
+  .key.fn{ color:var(--amber); font-size:16px; }
+  .key.eq{ background:linear-gradient(180deg,#2bff77,#12b34e 60%,#0a7d36);
+    color:#062a12; text-shadow:none; box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 2px 6px rgba(43,255,119,.35);}
+
+  /* now-playing mini bar */
+  #nowbar{
+    display:flex; align-items:center; gap:8px;
+    margin-top:12px; padding:7px 8px;
+    background:linear-gradient(180deg,#0a1a0d,#071206);
+    border:1px solid #000; border-radius:8px;
+    box-shadow:inset 0 2px 6px rgba(0,0,0,.7);
+  }
+  #miniPlay, #miniNext{
+    flex:0 0 auto; width:26px; height:26px; border-radius:6px; cursor:pointer;
+    border:1px solid #000; color:var(--lcd);
+    background:linear-gradient(180deg,var(--btn-hi),var(--btn-lo));
+    font-size:12px; display:flex; align-items:center; justify-content:center;
+  }
+  #miniPlay:active, #miniNext:active{ filter:brightness(1.3); transform:translateY(1px); }
+  #miniWrap{ flex:1 1 auto; overflow:hidden; }
+  #miniTitle{
+    font-family:"Consolas",monospace; font-size:11px; color:var(--lcd);
+    white-space:nowrap; text-shadow:0 0 6px var(--lcd-dim);
+  }
+  #miniProg{ height:3px; background:#03260f; border-radius:2px; margin-top:4px; overflow:hidden;}
+  #miniBar{ height:100%; width:0%; background:var(--lcd); box-shadow:0 0 6px var(--lcd);}
+  #expandBtn{
+    flex:0 0 auto; width:26px; height:26px; border-radius:6px; cursor:pointer;
+    border:1px solid #000; color:var(--amber); font-size:14px;
+    background:linear-gradient(180deg,var(--btn-hi),var(--btn-lo));
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .3s;
+  }
+
+  /* ============ WINAMP PLAYER ============ */
+  #player{
+    width:0; overflow:hidden; opacity:0;
+    transition:width .35s ease, opacity .3s ease, margin .35s ease;
+    align-self:flex-start; margin-left:0;
+  }
+  #app.open #player{ width:330px; opacity:1; margin-left:14px; }
+  #app.open #expandBtn{ transform:rotate(180deg); }
+
+  .amp{
+    width:330px; height:100%;
+    background:linear-gradient(160deg,#3a3a3a,#242424 30%,#101010);
+    border-radius:14px; border:1px solid #000;
+    box-shadow:0 24px 60px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.1);
+    display:flex; flex-direction:column; padding:10px;
+  }
+  .amp-title{
+    display:flex; align-items:center; justify-content:space-between;
+    background:linear-gradient(180deg,#1a2b3a,#0c1620);
+    border:1px solid #000; border-radius:6px; padding:5px 9px; margin-bottom:8px;
+  }
+  .amp-title .t{ font-size:11px; letter-spacing:3px; color:#7fd0ff; text-shadow:0 0 8px #1b4a66;}
+  .amp-title .x{ cursor:pointer; color:#888; font-size:13px; padding:0 4px;}
+  .amp-title .x:hover{ color:#fff; }
+
+  .lcd{
+    background:linear-gradient(180deg,#071206,#0a1a0d);
+    border:1px solid #000; border-radius:6px; padding:8px 10px; margin-bottom:8px;
+    box-shadow:inset 0 2px 8px rgba(0,0,0,.8);
+  }
+  .lcd-top{ display:flex; align-items:center; gap:10px; }
+  .time{ font-family:"Consolas",monospace; font-size:24px; font-weight:700; color:var(--lcd);
+    text-shadow:0 0 10px rgba(43,255,119,.5); letter-spacing:1px; }
+  .meta{ font-family:"Consolas",monospace; font-size:9px; color:var(--lcd-dim); line-height:1.5; }
+  .meta b{ color:var(--lcd); }
+  #viz{ display:block; width:100%; height:38px; margin-top:6px; background:#040c05; border-radius:3px; }
+  .marquee-wrap{ overflow:hidden; margin-top:6px; border-top:1px solid #03260f; padding-top:5px;}
+  #trackTitle{ display:inline-block; white-space:nowrap; font-family:"Consolas",monospace;
+    font-size:12px; color:var(--lcd); text-shadow:0 0 6px var(--lcd-dim); padding-left:100%;
+    animation:marq 12s linear infinite; }
+  #trackTitle.paused{ animation-play-state:paused; }
+  @keyframes marq{ to{ transform:translateX(-100%);} }
+
+  .seek{ margin-bottom:8px; }
+  input[type=range]{ -webkit-appearance:none; width:100%; height:6px; border-radius:4px;
+    background:#03260f; box-shadow:inset 0 1px 3px #000; outline:none; cursor:pointer; }
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:12px; height:16px;
+    border-radius:3px; background:linear-gradient(180deg,#3bff86,#0a7d36); border:1px solid #000;
+    box-shadow:0 0 6px rgba(43,255,119,.6); }
+
+  .transport{ display:flex; gap:6px; margin-bottom:8px; }
+  .tbtn{ flex:1; height:34px; border:1px solid #000; border-radius:7px; cursor:pointer; color:#ddd;
+    background:linear-gradient(180deg,var(--btn-hi),var(--btn) 55%,var(--btn-lo));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.12); font-size:13px;
+    display:flex; align-items:center; justify-content:center; }
+  .tbtn:active{ filter:brightness(1.3); transform:translateY(1px); }
+  .tbtn.play{ color:var(--lcd); }
+  .tbtn.eject{ color:var(--amber); }
+
+  .sliders{ display:flex; gap:10px; align-items:center; margin-bottom:8px; font-size:9px; color:#888;}
+  .sliders .grp{ flex:1; }
+  .sliders label{ display:block; letter-spacing:1px; margin-bottom:3px; }
+
+  .plwrap{ flex:1; display:flex; flex-direction:column; min-height:120px;
+    background:#040c05; border:1px solid #000; border-radius:6px; overflow:hidden; }
+  .plhead{ display:flex; align-items:center; justify-content:space-between;
+    background:linear-gradient(180deg,#1a2b3a,#0c1620); padding:4px 8px;
+    font-size:9px; letter-spacing:2px; color:#7fd0ff; }
+  .plhead span{ cursor:pointer; color:var(--amber); }
+  #playlist{ list-style:none; overflow-y:auto; flex:1; }
+  #playlist li{ font-family:"Consolas",monospace; font-size:11px; color:var(--lcd-dim);
+    padding:4px 8px; cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    border-bottom:1px solid rgba(43,255,119,.05); }
+  #playlist li:hover{ background:rgba(43,255,119,.08); color:var(--lcd); }
+  #playlist li.active{ background:rgba(43,255,119,.16); color:var(--lcd); font-weight:700; }
+  #playlist li .num{ color:#0a5f2b; margin-right:6px; }
+  .empty{ padding:14px 8px; font-size:10px; color:#0a5f2b; font-family:"Consolas",monospace; }
+  #playlist::-webkit-scrollbar{ width:8px; }
+  #playlist::-webkit-scrollbar-thumb{ background:#0a5f2b; border-radius:4px; }
+
+  /* ovládání vizualizéru */
+  .viz-ctl{ display:flex; justify-content:space-between; align-items:center; margin-top:5px;
+    font:9px "Consolas",monospace; letter-spacing:1px; color:var(--lcd-dim); }
+  .viz-ctl span{ cursor:pointer; padding:2px 5px; border-radius:3px; user-select:none; }
+  .viz-ctl span:hover{ color:var(--lcd); background:rgba(43,255,119,.1); }
+  .viz-ctl b{ color:var(--lcd); }
+  #viz{ cursor:pointer; }
+
+  /* fullscreen vizualizér */
+  #vizFull{ position:fixed; inset:0; background:#000; display:none; z-index:99999; cursor:pointer; }
+  #vizFull.on{ display:block; }
+  #vizBig{ display:block; width:100%; height:100%; }
+  #vizFullBar{ position:fixed; left:0; right:0; bottom:22px; text-align:center; pointer-events:none;
+    font:12px "Consolas",monospace; letter-spacing:3px; }
+  #vizFullBar span{ margin:0 12px; }
+  #vizFullStyle{ color:var(--lcd); text-shadow:0 0 8px var(--lcd-dim); }
+  #vizFullBar .hint{ color:#0f8f42; }
+
+  /* přepínač playlistů */
+  #plSwitch{ flex:1 1 auto; min-width:0; cursor:pointer; color:#7fd0ff;
+    display:flex; align-items:center; gap:4px; }
+  #plSwitch b{ color:var(--lcd); font-weight:700; white-space:nowrap; overflow:hidden;
+    text-overflow:ellipsis; max-width:150px; }
+  #plSwitch i{ color:#0f8f42; font-style:normal; flex:0 0 auto; }
+  #plSwitch .caret{ color:#0f8f42; flex:0 0 auto; }
+  #plSwitch:hover b{ text-shadow:0 0 6px var(--lcd-dim); }
+  .plActions{ display:flex; gap:7px; flex:0 0 auto; align-items:center; }
+  .plActions span{ cursor:pointer; color:var(--amber); }
+  .plActions span:hover{ filter:brightness(1.35); text-shadow:0 0 6px rgba(255,180,58,.5); }
+  .pl-rename{ font:11px "Consolas",monospace; background:#03260f; color:var(--lcd);
+    border:1px solid var(--lcd-dim); border-radius:3px; width:140px; padding:1px 4px; outline:none; }
+  #plMenu{ position:fixed; display:none; z-index:100000; background:#0a1a0d;
+    border:1px solid var(--lcd-dim); border-radius:6px; box-shadow:0 8px 24px rgba(0,0,0,.75);
+    max-height:240px; overflow-y:auto; padding:4px; }
+  #plMenu.on{ display:block; }
+  #plMenu .pl-item{ font:11px "Consolas",monospace; color:var(--lcd-dim); padding:5px 10px;
+    cursor:pointer; white-space:nowrap; border-radius:4px; }
+  #plMenu .pl-item:hover{ background:rgba(43,255,119,.12); color:var(--lcd); }
+  #plMenu .pl-item.on{ color:var(--lcd); background:rgba(43,255,119,.18); font-weight:700; }
+  #plMenu::-webkit-scrollbar{ width:8px; }
+  #plMenu::-webkit-scrollbar-thumb{ background:#0a5f2b; border-radius:4px; }
+  /* zvýraznění při přetahování souborů/složek */
+  body.dragging #calc, body.dragging .amp{ outline:2px dashed var(--lcd); outline-offset:-2px; }

@@ -24,6 +24,8 @@
       "main.js",
       "preload.js",
       "index.html",
+      "app.js",
+      "app.css",
       "calcamp.svg"
     ],
     "directories": {
