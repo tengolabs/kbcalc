@@ -21,6 +21,8 @@ v dolní liště vedle ní vysune plnohodnotný přehrávač s vizualizérem.
   (`200 + 10 % = 220`, `200 × 10 % = 20`).
 - Okno se dynamicky mění přesně podle obsahu — sbalené je *jen* kalkulačka
   s mini ovládáním přehrávání v dolní liště.
+- **Mini zápisník** (`✎`): malý samoukládací blok hned pod kalkulačkou —
+  chip `⤓` vloží aktuální výsledek na pozici kurzoru.
 
 **Přehrávač**
 - Transport (předchozí / play–pauza / stop / další / eject = přidat soubory)

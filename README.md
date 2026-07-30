@@ -22,6 +22,8 @@ with a real-time visualizer.
   (`200 + 10 % = 220`, `200 × 10 % = 20`).
 - The window always resizes to exactly fit its content — collapsed, it is
   *only* the calculator, with a mini play/next control in the bottom bar.
+- **Mini notepad** (`✎`): a small auto-saved scratchpad right under the
+  calculator — the `⤓` chip inserts the current result at the cursor.
 
 **Player**
 - Transport controls (prev / play–pause / stop / next / eject-to-add-files),

@@ -15,6 +15,7 @@
       <span>kb<b>CALC</b></span>
       <span class="wc">
         <span id="clock">88:88</span>
+        <button class="wcbtn" id="notesBtn" data-i18n-title="ttNotes">✎</button>
         <button class="wcbtn" id="infoBtn" data-i18n-title="ttInfo">ⓘ</button>
         <button class="wcbtn" id="pinBtn" data-i18n-title="ttPin">◉</button>
         <button class="wcbtn" id="minBtn" data-i18n-title="ttMin">–</button>
@@ -61,6 +62,14 @@
         <div id="miniProg"><div id="miniBar"></div></div>
       </div>
       <div id="expandBtn" data-i18n-title="ttExpand">▶</div>
+    </div>
+
+    <!-- mini zápisník -->
+    <div id="notesPanel" hidden>
+      <div class="notesBar">
+        <span id="notesIns" data-i18n-title="ttNotesIns">⤓ <b id="notesInsVal">0</b></span>
+      </div>
+      <textarea id="notesArea" data-i18n-ph="notesPh" rows="5" spellcheck="false"></textarea>
     </div>
   </div>
 

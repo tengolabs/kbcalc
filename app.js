@@ -15,6 +15,8 @@
       ttPlSwitch:'Přepnout playlist', ttPlNew:'Nový prázdný playlist', ttPlRename:'Přejmenovat playlist',
       ttPlDel:'Smazat playlist',
       ttShuffle:'Náhodné přehrávání', ttEq:'Ekvalizér',
+      ttNotes:'Poznámky', ttNotesIns:'Vložit aktuální výsledek do poznámky',
+      notesPh:'Rychlá poznámka… (ukládá se sama)',
       repOff:'Opakování: vypnuto', repAll:'Opakování: celý playlist', repOne:'Opakování: jedna skladba',
       vizEnlarge:'⛶ ZVĚTŠIT', vizHint:'klik = změnit styl · Esc = návrat',
       marqueeHint:'KBCALC · nahraj MP3 přes tlačítko ⏏ a spusť přehrávání',
@@ -44,6 +46,8 @@
       ttPlSwitch:'Switch playlist', ttPlNew:'New empty playlist', ttPlRename:'Rename playlist',
       ttPlDel:'Delete playlist',
       ttShuffle:'Shuffle', ttEq:'Equalizer',
+      ttNotes:'Notes', ttNotesIns:'Insert the current result into the note',
+      notesPh:'Quick note… (auto-saved)',
       repOff:'Repeat: off', repAll:'Repeat: whole playlist', repOne:'Repeat: one track',
       vizEnlarge:'⛶ ENLARGE', vizHint:'click = change style · Esc = back',
       marqueeHint:'KBCALC · load MP3s via the ⏏ button and hit play',
@@ -73,6 +77,7 @@
     document.documentElement.lang = lang;
     document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = tr(el.dataset.i18n); });
     document.querySelectorAll('[data-i18n-title]').forEach(el=>{ el.title = tr(el.dataset.i18nTitle); });
+    document.querySelectorAll('[data-i18n-ph]').forEach(el=>{ el.placeholder = tr(el.dataset.i18nPh); });
     document.querySelectorAll('.langBtn').forEach(b=>b.classList.toggle('on', b.dataset.lang===lang));
   }
   function setLang(l){
@@ -113,7 +118,8 @@
   function render(){
     const shown = cur.length>12 ? (+cur).toPrecision(8) : cur;
     outEl.textContent = group(shown);
-    exprEl.innerHTML = prev!==null ? (group(prev)+' '+opSym[op]) : '&nbsp;'; }
+    exprEl.innerHTML = prev!==null ? (group(prev)+' '+opSym[op]) : '&nbsp;';
+    const nv=document.getElementById('notesInsVal'); if(nv) nv.textContent=group(shown); }
 
   function press(k){
     if(/^[0-9]$/.test(k)){ cur = freshNum ? k : (cur==='0'?k:cur+k); freshNum=false; }
@@ -140,6 +146,7 @@
     const b=e.target.closest('.key'); if(b) press(b.dataset.k);
   });
   window.addEventListener('keydown', e=>{
+    if(e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;  // psaní do polí ≠ kalkulačka
     const vf=document.getElementById('vizFull');
     if(vf && vf.classList.contains('on')) return;   // ve fullscreen vizualizéru klávesy neovládají kalkulačku
     const ab=document.getElementById('about');
@@ -843,6 +850,36 @@
     else { cancelAnimationFrame(bigReq); vizFull.classList.remove('on'); }
   });
   window.addEventListener('keydown', e=>{ if(e.key==='Escape' && vizFull.classList.contains('on')) exitFull(); });
+
+  /* ---------- MINI ZÁPISNÍK ---------- */
+  const notesPanel=document.getElementById('notesPanel');
+  const notesArea=document.getElementById('notesArea');
+  const notesBtn=document.getElementById('notesBtn');
+  try{ notesArea.value = localStorage.getItem('kbcalc.notes')||''; }catch(e){}
+  let notesT=0;
+  const notesSave=()=>{ clearTimeout(notesT);
+    notesT=setTimeout(()=>{ try{ localStorage.setItem('kbcalc.notes', notesArea.value); }catch(e){} }, 400); };
+  notesArea.addEventListener('input', notesSave);
+  function toggleNotes(){
+    notesPanel.hidden=!notesPanel.hidden;
+    notesBtn.classList.toggle('on', !notesPanel.hidden);
+    try{ localStorage.setItem('kbcalc.notesOpen', notesPanel.hidden?'0':'1'); }catch(e){}
+    fitWindow();
+    if(!notesPanel.hidden) notesArea.focus();
+  }
+  notesBtn.onclick=toggleNotes;
+  notesArea.addEventListener('keydown', e=>{ e.stopPropagation();
+    if(e.key==='Escape') toggleNotes(); });
+  document.getElementById('notesIns').onclick=()=>{
+    if(notesPanel.hidden) return;
+    const s=notesArea.selectionStart??notesArea.value.length;
+    const e2=notesArea.selectionEnd??s;
+    notesArea.setRangeText(cur, s, e2, 'end');    // syrová hodnota bez mezer tisíců
+    notesArea.focus(); notesSave();
+  };
+  try{ if(localStorage.getItem('kbcalc.notesOpen')==='1'){
+    notesPanel.hidden=false; notesBtn.classList.add('on');
+  } }catch(e){}
 
   /* ---------- O APLIKACI ---------- */
   const about = document.getElementById('about');
