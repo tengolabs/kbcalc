@@ -37,8 +37,10 @@ with a real-time visualizer.
   (whatever the OS media stack can decode).
 
 **Visualizer**
-- 5 styles: SPECTRUM, MIRROR, BLOCKS, WAVE, TUNNEL — click the canvas or the
-  style button to cycle.
+- 6 styles — the default **CURVE** is a smooth filled spectrum with a soft
+  reflection (for fans of AIMP-style analyzers), plus SPECTRUM, MIRROR,
+  BLOCKS, WAVE and TUNNEL. Click the canvas or the style button to cycle;
+  the choice is remembered.
 - Fullscreen mode (`⛶`): click to change style, `Esc` to leave.
 
 **Window**
@@ -115,6 +117,11 @@ Found a vulnerability? See [SECURITY.md](SECURITY.md).
 **Richard Pobrislo** and **Claude Fable 5** (Anthropic) — from the makers of
 [killBottleneck](https://killbottleneck.com). Tutorials, news and AI
 experiments on YouTube: [@ctrlaltaicz](https://www.youtube.com/@ctrlaltaicz).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) — code layout, ground rules and how to
+run from source.
 
 ## License
 

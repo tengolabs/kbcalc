@@ -34,8 +34,9 @@ v dolní liště vedle ní vysune plnohodnotný přehrávač s vizualizérem.
 - Formáty: mp3, m4a, ogg/oga, wav, flac, aac, opus, wma.
 
 **Vizualizér**
-- 5 stylů: SPEKTRUM, ZRCADLO, BLOKY, VLNA, NORA — klik na plochu nebo
-  tlačítko stylu přepíná.
+- 6 stylů — výchozí **KŘIVKA** je hladké vyplněné spektrum s jemným odleskem
+  (pro fanoušky analyzérů ve stylu AIMP), dál SPEKTRUM, ZRCADLO, BLOKY,
+  VLNA a NORA. Klik na plochu nebo tlačítko stylu přepíná; volba se pamatuje.
 - Fullscreen (`⛶`): klik = změna stylu, `Esc` = zpět.
 
 **Okno**
@@ -102,6 +103,11 @@ Našli jste zranitelnost? Viz [SECURITY.md](SECURITY.md).
 **Richard Pobrislo** a **Claude Fable 5** (Anthropic) — od tvůrců
 [killBottleneck](https://killbottleneck.com). Návody, novinky a AI experimenty
 na YouTube: [@ctrlaltaicz](https://www.youtube.com/@ctrlaltaicz).
+
+## Přispívání
+
+Viz [CONTRIBUTING.md](CONTRIBUTING.md) — rozložení kódu, pravidla a spuštění
+ze zdrojáků.
 
 ## Licence
 

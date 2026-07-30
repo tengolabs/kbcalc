@@ -31,7 +31,7 @@
       version:'Verze {v}', updAvail:'Je dostupná verze {v}',
       updCur:'Máte {v} — klikněte pro poznámky k vydání',
       authors:'Autoři: Richard Pobrislo · Claude Fable 5',
-      viz:['SPEKTRUM','ZRCADLO','BLOKY','VLNA','NORA'],
+      viz:['KŘIVKA','SPEKTRUM','ZRCADLO','BLOKY','VLNA','NORA'],
     },
     en: {
       ttInfo:'About', ttPin:'Always on top', ttMin:'Minimize', ttClose:'Close',
@@ -58,7 +58,7 @@
       version:'Version {v}', updAvail:'Version {v} is available',
       updCur:'You have {v} — click for release notes',
       authors:'Authors: Richard Pobrislo · Claude Fable 5',
-      viz:['SPECTRUM','MIRROR','BLOCKS','WAVE','TUNNEL'],
+      viz:['CURVE','SPECTRUM','MIRROR','BLOCKS','WAVE','TUNNEL'],
     },
   };
   let lang = (()=>{ try{ const s=localStorage.getItem('kbcalc.lang'); if(s==='cs'||s==='en') return s; }catch(e){}
@@ -504,10 +504,12 @@
   const canvas=document.getElementById('viz'), vctx=canvas.getContext('2d');
   const bigCanvas=document.getElementById('vizBig'), bctx=bigCanvas.getContext('2d');
   const vizFull=document.getElementById('vizFull');
-  const STYLES=['SPEKTRUM','ZRCADLO','BLOKY','VLNA','NORA'];
-  let vizStyle=0;
+  const STYLES=['KŘIVKA','SPEKTRUM','ZRCADLO','BLOKY','VLNA','NORA'];
+  let vizStyle=(()=>{ try{ const v=+localStorage.getItem('kbcalc.viz');
+    return (v>=0 && v<STYLES.length) ? v : 0; }catch(e){ return 0; } })();
   const peaks={};                       // padající "čepičky" podle počtu sloupců
   const nora={phase:0};                 // stav "králičí nory" (tunelu)
+  const curveS={};                      // vyhlazené hodnoty pro KŘIVKU (rychlý náběh, pomalý dojezd)
 
   function getData(){
     if(!audio._graph) return null;
@@ -520,6 +522,44 @@
     ctx.clearRect(0,0,W,H);
     const style=STYLES[vizStyle];
     const freq=g?g.freq:null, time=g?g.time:null;
+
+    if(style==='KŘIVKA'){                // hladké spektrum (à la AIMP): plynulá plocha + odlesk
+      const pts=48;
+      const key='c'+pts; if(!curveS[key]) curveS[key]=new Float32Array(pts);
+      const sm=curveS[key];
+      const base=H*0.76;                 // nad základnou spektrum, pod ní zrcadlový odlesk
+      for(let i=0;i<pts;i++){
+        let v = freq ? freq[Math.floor(i*(freq.length*0.7)/pts)]/255
+                     : 0.10+0.07*Math.abs(Math.sin(i*0.35+performance.now()/700));
+        v = Math.min(1, v*(1+i/pts*0.6));
+        sm[i] = v>sm[i] ? sm[i]+(v-sm[i])*0.5 : sm[i]*0.90;
+      }
+      const X=i=>i/(pts-1)*W, Y=i=>base - sm[i]*base*0.94;
+      const buildPath=()=>{
+        ctx.beginPath(); ctx.moveTo(0,base); ctx.lineTo(X(0),Y(0));
+        for(let i=1;i<pts;i++){
+          const mx=(X(i-1)+X(i))/2, my=(Y(i-1)+Y(i))/2;
+          ctx.quadraticCurveTo(X(i-1),Y(i-1),mx,my);
+        }
+        ctx.lineTo(X(pts-1),Y(pts-1)); ctx.lineTo(W,base); ctx.closePath();
+      };
+      const grad=ctx.createLinearGradient(0,0,0,base);
+      grad.addColorStop(0,'rgba(255,210,58,.85)');
+      grad.addColorStop(.4,'rgba(43,255,119,.75)');
+      grad.addColorStop(1,'rgba(10,125,54,.20)');
+      buildPath(); ctx.fillStyle=grad; ctx.fill();
+      ctx.strokeStyle='#7dffb0'; ctx.lineWidth=Math.max(1.2,H/90);
+      ctx.shadowColor='#2bff77'; ctx.shadowBlur=Math.min(14,H/10);
+      ctx.stroke(); ctx.shadowBlur=0;
+      // odlesk pod základnou (zrcadlově, ztlumený)
+      ctx.save();
+      ctx.translate(0, 2*base); ctx.scale(1,-1);
+      ctx.globalAlpha=0.16; buildPath(); ctx.fillStyle=grad; ctx.fill();
+      ctx.restore();
+      // linka základny
+      ctx.fillStyle='rgba(43,255,119,.35)'; ctx.fillRect(0,base,W,1);
+      return;
+    }
 
     if(style==='VLNA'){                  // osciloskop
       ctx.lineWidth=Math.max(1.5, H/60); ctx.strokeStyle='#2bff77';
@@ -633,7 +673,8 @@
   }
   function setStyleLabels(){ const lbl=tr('viz')[vizStyle] || STYLES[vizStyle];
     ['vizStyleLabel','vizFullStyle'].forEach(id=>{ const e=document.getElementById(id); if(e) e.textContent=lbl; }); }
-  function cycleStyle(){ vizStyle=(vizStyle+1)%STYLES.length; setStyleLabels(); }
+  function cycleStyle(){ vizStyle=(vizStyle+1)%STYLES.length; setStyleLabels();
+    try{ localStorage.setItem('kbcalc.viz', String(vizStyle)); }catch(e){} }
 
   document.getElementById('vizStyleBtn').onclick=cycleStyle;
   canvas.addEventListener('click', cycleStyle);
