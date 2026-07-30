@@ -261,3 +261,19 @@
     font:inherit; font-size:10px; padding:1px 5px; cursor:pointer; margin-left:3px; }
   .langBtn:hover{ color:#ccc; }
   .langBtn.on{ color:var(--lcd); border-color:var(--lcd-dim); }
+
+  /* ---------- shuffle / repeat / EQ ---------- */
+  .tbtn.mode{ flex:0 0 auto; min-width:30px; font-size:11px; color:#8b8b8b; }
+  .tbtn.mode.on{ color:var(--lcd); text-shadow:0 0 8px var(--lcd-dim); }
+  #eqPanel{ display:flex; align-items:flex-end; gap:10px; margin-bottom:8px;
+    background:linear-gradient(180deg,#071206,#0a1a0d); border:1px solid #000;
+    border-radius:6px; padding:8px 10px; box-shadow:inset 0 2px 6px rgba(0,0,0,.7); }
+  #eqPanel[hidden]{ display:none; }
+  .eqBands{ display:flex; gap:12px; flex:1 1 auto; justify-content:space-around; }
+  .eqBand{ display:flex; flex-direction:column; align-items:center; gap:3px; }
+  .eqBand input[type=range]{ writing-mode:vertical-lr; direction:rtl;
+    width:20px; height:58px; padding:0; }
+  .eqBand label{ font-family:"Consolas",monospace; font-size:9px; color:var(--lcd-dim); }
+  #eqPreset{ background:#122417; color:var(--lcd); border:1px solid #0f6b33;
+    border-radius:5px; font-size:11px; padding:3px 5px; outline:none; }
+  #playlist li.dropmark{ box-shadow:inset 0 2px 0 var(--lcd); }

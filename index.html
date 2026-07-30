@@ -98,6 +98,9 @@
         <button class="tbtn" data-t="stop" data-i18n-title="ttStop">⏹</button>
         <button class="tbtn" data-t="next" data-i18n-title="ttNext">⏭</button>
         <button class="tbtn eject" data-t="eject" data-i18n-title="ttEject">⏏</button>
+        <button class="tbtn mode" id="shufBtn" data-i18n-title="ttShuffle">🔀</button>
+        <button class="tbtn mode" id="repBtn">🔁</button>
+        <button class="tbtn mode" id="eqBtn" data-i18n-title="ttEq">EQ</button>
       </div>
 
       <div class="sliders">
@@ -105,6 +108,25 @@
           <input type="range" id="vol" min="0" max="100" value="80"></div>
         <div class="grp"><label>BALANCE</label>
           <input type="range" id="bal" min="-100" max="100" value="0"></div>
+      </div>
+
+      <div id="eqPanel" hidden>
+        <div class="eqBands">
+          <div class="eqBand"><input type="range" class="eqSlider" data-band="0" min="-12" max="12" value="0" step="1"><label>60</label></div>
+          <div class="eqBand"><input type="range" class="eqSlider" data-band="1" min="-12" max="12" value="0" step="1"><label>250</label></div>
+          <div class="eqBand"><input type="range" class="eqSlider" data-band="2" min="-12" max="12" value="0" step="1"><label>1k</label></div>
+          <div class="eqBand"><input type="range" class="eqSlider" data-band="3" min="-12" max="12" value="0" step="1"><label>4k</label></div>
+          <div class="eqBand"><input type="range" class="eqSlider" data-band="4" min="-12" max="12" value="0" step="1"><label>12k</label></div>
+        </div>
+        <select id="eqPreset">
+          <option value="flat">Flat</option>
+          <option value="rock">Rock</option>
+          <option value="pop">Pop</option>
+          <option value="jazz">Jazz</option>
+          <option value="bass">Bass+</option>
+          <option value="vocal">Vocal</option>
+          <option value="custom" hidden>Custom</option>
+        </select>
       </div>
 
       <div class="plwrap">

@@ -16,4 +16,11 @@ contextBridge.exposeInMainWorld('win', {
   openLink: (key) => ipcRenderer.send('app:openLink', key),
   openRelease: () => ipcRenderer.send('app:openRelease'),
   versionInfo: () => ipcRenderer.invoke('app:versionInfo'),
+  // hardwarová media tlačítka + tray → jeden callback ('playpause'|'next'|'prev'|'stop')
+  onMedia: (cb) => {
+    for (const ch of ['playpause', 'next', 'prev', 'stop'])
+      ipcRenderer.on('media:' + ch, () => cb(ch));
+  },
+  // jazyk UI pro tray menu
+  notifyLang: (l) => ipcRenderer.send('app:lang', l),
 });

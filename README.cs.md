@@ -23,13 +23,23 @@ v dolní liště vedle ní vysune plnohodnotný přehrávač s vizualizérem.
   s mini ovládáním přehrávání v dolní liště.
 
 **Přehrávač**
-- Transport (předchozí / play–pauza / stop / další / eject = přidat soubory).
-- VOLUME a BALANCE přes Web Audio.
+- Transport (předchozí / play–pauza / stop / další / eject = přidat soubory)
+  + **náhodné přehrávání** a **opakování** (vypnuto / vše / jedna) — obojí se pamatuje.
+- **Hardwarová media tlačítka** fungují, i když je appka na pozadí
+  (play/pauza, další, předchozí, stop).
+- **Ikona v tray**: zobrazit/skrýt okno, ovládání přehrávání, ukončení.
+- VOLUME a BALANCE přes Web Audio + **5pásmový ekvalizér**
+  (60 Hz – 12 kHz, presety Flat/Rock/Pop/Jazz/Bass+/Vocal, pamatuje se).
+- **ID3 tagy**: skladby zobrazují „Interpret – Název" z ID3v2/ID3v1
+  (parser bez závislostí); jinak název souboru.
+
+  <img src="docs/player.png" width="380" alt="Přehrávač s otevřeným ekvalizérem">
 - **Víc pojmenovaných playlistů**: nový, inline přejmenování, smazání,
   přepínání v hlavičce. Playlisty přežijí restart (ukládají se cesty;
   audio se načítá líně — v paměti je max jedna skladba).
 - **Drag & drop**: soubory → do aktuálního playlistu; složka → nový playlist
-  pojmenovaný po ní (rekurzivně, jen audio, seřazeno).
+  pojmenovaný po ní (rekurzivně, jen audio, seřazeno). Pořadí skladeb jde
+  měnit přetažením v playlistu.
 - Mrtvé/smazané soubory se při přehrávání automaticky přeskočí.
 - Formáty: mp3, m4a, ogg/oga, wav, flac, aac, opus, wma.
 
@@ -41,6 +51,7 @@ v dolní liště vedle ní vysune plnohodnotný přehrávač s vizualizérem.
 
 **Okno**
 - Vždy navrchu (`◉`), minimalizace, zavření — vlastní ovládání bez OS lišty.
+- Pozice okna se pamatuje mezi spuštěními.
 - Dialog O aplikaci (`ⓘ`) s odkazy na projekt a verzí. Jednou denně se appka
   anonymně zeptá GitHub Releases, jestli není nová verze, a nabídne odkaz na
   poznámky k vydání — žádná telemetrie, nic se nikam neodesílá.

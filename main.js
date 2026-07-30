@@ -1,6 +1,19 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, globalShortcut, Tray, Menu, nativeImage, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
+
+// ---------- zapamatování pozice okna ----------
+const winStateFile = () => path.join(app.getPath('userData'), 'window-state.json');
+function loadWinState() {
+  try { return JSON.parse(fs.readFileSync(winStateFile(), 'utf8')); } catch { return null; }
+}
+function posOnScreen(p) {           // nerestauruj pozici mimo aktuální monitory
+  if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
+  return screen.getAllDisplays().some(d => {
+    const b = d.workArea;
+    return p.x >= b.x - 50 && p.y >= b.y - 50 && p.x < b.x + b.width && p.y < b.y + b.height;
+  });
+}
 
 // ---------- O aplikaci: odkazy + kontrola nové verze ----------
 // Odkazy se otevírají VÝHRADNĚ v systémovém prohlížeči a jen z tohoto allowlistu —
@@ -60,9 +73,11 @@ try {
 let win;
 
 function createWindow() {
+  const ws = loadWinState();
   win = new BrowserWindow({
     width: 272,          // sbalený stav (jen kalkulačka); okno se dopočítá podle obsahu
     height: 460,
+    ...(posOnScreen(ws) ? { x: ws.x, y: ws.y } : {}),
     useContentSize: true,
     frame: false,          // bez titulní lišty
     transparent: true,     // průhledné pozadí -> plovoucí zaoblené rohy
@@ -89,9 +104,56 @@ function createWindow() {
   // Zabráníme rendereru (i při XSS) navigovat pryč nebo otevřít okno na file://‌/vzdálenou URL.
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.webContents.on('will-navigate', (e) => e.preventDefault());
+
+  win.on('close', () => {              // pozice okna přežije restart
+    try {
+      const [x, y] = win.getPosition();
+      fs.writeFileSync(winStateFile(), JSON.stringify({ x, y }));
+    } catch {}
+  });
 }
 
-app.whenReady().then(createWindow);
+// ---------- tray + hardwarová media tlačítka ----------
+const TRAY_T = {
+  cs: { show: 'Zobrazit / skrýt', play: 'Přehrát / pauza', next: 'Další skladba',
+        prev: 'Předchozí skladba', quit: 'Ukončit' },
+  en: { show: 'Show / hide', play: 'Play / pause', next: 'Next track',
+        prev: 'Previous track', quit: 'Quit' },
+};
+let tray = null, trayLang = 'cs';
+const sendMedia = ch => { if (win) win.webContents.send('media:' + ch); };
+function buildTrayMenu() {
+  if (!tray) return;
+  const t = TRAY_T[trayLang] || TRAY_T.cs;
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: t.show, click: () => { if (win) win.isVisible() ? win.hide() : win.show(); } },
+    { type: 'separator' },
+    { label: t.play, click: () => sendMedia('playpause') },
+    { label: t.next, click: () => sendMedia('next') },
+    { label: t.prev, click: () => sendMedia('prev') },
+    { type: 'separator' },
+    { label: t.quit, click: () => app.quit() },
+  ]));
+}
+ipcMain.on('app:lang', (e, l) => { trayLang = l === 'en' ? 'en' : 'cs'; buildTrayMenu(); });
+
+app.whenReady().then(() => {
+  createWindow();
+  // media klávesy fungují, i když je appka na pozadí
+  for (const [acc, ch] of [['MediaPlayPause', 'playpause'], ['MediaNextTrack', 'next'],
+                           ['MediaPreviousTrack', 'prev'], ['MediaStop', 'stop']]) {
+    try { globalShortcut.register(acc, () => sendMedia(ch)); } catch {}
+  }
+  try {
+    const img = nativeImage.createFromPath(path.join(__dirname, 'build', 'icon.png'))
+      .resize({ width: 20, height: 20 });
+    tray = new Tray(img);
+    tray.setToolTip('kbCalc');
+    tray.on('click', () => { if (win) win.isVisible() ? win.hide() : win.show(); });
+    buildTrayMenu();
+  } catch (e) { console.warn('tray:', e); }   // bez tray (např. headless) appka normálně běží
+});
+app.on('will-quit', () => globalShortcut.unregisterAll());
 
 ipcMain.on('win:close', () => { if (win) win.close(); });
 ipcMain.on('win:min', () => { if (win) win.minimize(); });

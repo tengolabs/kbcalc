@@ -14,6 +14,8 @@
       ttPrev:'Předchozí', ttPlay:'Přehrát/Pauza', ttStop:'Stop', ttNext:'Další', ttEject:'Přidat soubory',
       ttPlSwitch:'Přepnout playlist', ttPlNew:'Nový prázdný playlist', ttPlRename:'Přejmenovat playlist',
       ttPlDel:'Smazat playlist',
+      ttShuffle:'Náhodné přehrávání', ttEq:'Ekvalizér',
+      repOff:'Opakování: vypnuto', repAll:'Opakování: celý playlist', repOne:'Opakování: jedna skladba',
       vizEnlarge:'⛶ ZVĚTŠIT', vizHint:'klik = změnit styl · Esc = návrat',
       marqueeHint:'KBCALC · nahraj MP3 přes tlačítko ⏏ a spusť přehrávání',
       noTrack:'— žádná skladba —',
@@ -41,6 +43,8 @@
       ttPrev:'Previous', ttPlay:'Play/Pause', ttStop:'Stop', ttNext:'Next', ttEject:'Add files',
       ttPlSwitch:'Switch playlist', ttPlNew:'New empty playlist', ttPlRename:'Rename playlist',
       ttPlDel:'Delete playlist',
+      ttShuffle:'Shuffle', ttEq:'Equalizer',
+      repOff:'Repeat: off', repAll:'Repeat: whole playlist', repOne:'Repeat: one track',
       vizEnlarge:'⛶ ENLARGE', vizHint:'click = change style · Esc = back',
       marqueeHint:'KBCALC · load MP3s via the ⏏ button and hit play',
       noTrack:'— no track —',
@@ -78,7 +82,9 @@
     // dynamické texty, které applyI18n nepokryje (přepsané za běhu)
     setStyleLabels();
     renderPlaylist();
+    updateModes();
     if(idx<0) setTitle(tr('noTrack'));
+    if(window.win && window.win.notifyLang) window.win.notifyLang(l);   // tray menu
   }
 
   /* ---------- CALCULATOR ---------- */
@@ -162,6 +168,7 @@
   let playlists = [], activePl = 0, list = [], idx = -1, playing = false;
   let curUrlTrack = null;   // kvůli uvolňování lazy blobů z paměti
   let loadFailStreak = 0;   // pojistka proti nekonečné smyčce při přeskakování mrtvých souborů
+  let dragSrc = null;       // index přetahované skladby (reorder uvnitř playlistu)
 
   const miniTitle = document.getElementById('miniTitle');
   const miniBar = document.getElementById('miniBar');
@@ -175,6 +182,70 @@
 
   const secfmt = s => { s=Math.floor(s||0); return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); };
   const nameFrom = f => f.name.replace(/\.[^.]+$/,'');
+
+  /* ---- ID3 tagy (bez závislostí): TIT2/TPE1 z ID3v2.3/2.4, fallback ID3v1 ---- */
+  const TD = enc => { try{ return new TextDecoder(enc); }catch(e){ return new TextDecoder('utf-8'); } };
+  const ss  = (u,o)=>((u[o]&0x7f)<<21)|((u[o+1]&0x7f)<<14)|((u[o+2]&0x7f)<<7)|(u[o+3]&0x7f);
+  const u32 = (u,o)=>((u[o]<<24)|(u[o+1]<<16)|(u[o+2]<<8)|u[o+3])>>>0;
+  function id3Text(u){                       // textový rám: 1 B kódování + text
+    if(!u.length) return '';
+    const enc=u[0]; let b=u.subarray(1), d;
+    if(enc===1){ if(b[0]===0xFF&&b[1]===0xFE){ d=TD('utf-16le'); b=b.subarray(2); }
+                 else if(b[0]===0xFE&&b[1]===0xFF){ d=TD('utf-16be'); b=b.subarray(2); }
+                 else d=TD('utf-16le'); }
+    else if(enc===2) d=TD('utf-16be');
+    else if(enc===3) d=TD('utf-8');
+    else d=TD('windows-1250');               // „latin1" bývá u českých MP3 reálně win-1250
+    return d.decode(b).replace(/\0+$/,'').replace(/^\0+/,'').trim();
+  }
+  function parseId3(u){
+    try{
+      if(u.length>10 && u[0]===0x49&&u[1]===0x44&&u[2]===0x33){       // "ID3"
+        const ver=u[3], size=ss(u,6);
+        let o=10; if(u[5]&0x40) o+=ss(u,10)+4;                        // extended header
+        const end=Math.min(10+size, u.length);
+        const out={};
+        while(o+10<=end && !(out.title&&out.artist)){
+          if(u[o]===0) break;
+          const id=String.fromCharCode(u[o],u[o+1],u[o+2],u[o+3]);
+          const fsz=ver===4?ss(u,o+4):u32(u,o+4);
+          if(fsz<=0||o+10+fsz>end) break;
+          if(id==='TIT2') out.title =id3Text(u.subarray(o+10,o+10+fsz));
+          if(id==='TPE1') out.artist=id3Text(u.subarray(o+10,o+10+fsz));
+          o+=10+fsz;
+        }
+        if(out.title||out.artist) return out;
+      }
+      if(u.length>=128){                                              // ID3v1 na konci souboru
+        const t=u.subarray(u.length-128);
+        if(t[0]===0x54&&t[1]===0x41&&t[2]===0x47){                    // "TAG"
+          const s=(a,b)=>TD('windows-1250').decode(t.subarray(a,b)).replace(/\0.*$/,'').trim();
+          const title=s(3,33), artist=s(33,63);
+          if(title||artist) return {title,artist};
+        }
+      }
+    }catch(e){}
+    return null;
+  }
+  const tagLabel=(tag,fallback)=> (tag && (tag.artist&&tag.title ? tag.artist+' – '+tag.title
+                                          : tag.title||tag.artist)) || fallback;
+  async function tagFromFile(f){             // pro čerstvě přidané File objekty (čte jen tag, ne celý soubor)
+    try{
+      const head=new Uint8Array(await f.slice(0,10).arrayBuffer());
+      let tag=null;
+      if(head[0]===0x49&&head[1]===0x44&&head[2]===0x33){
+        const size=Math.min(ss(head,6)+10, 1024*1024);
+        tag=parseId3(new Uint8Array(await f.slice(0,size).arrayBuffer()));
+      }
+      if(!tag && f.size>=128)
+        tag=parseId3(new Uint8Array(await f.slice(f.size-128,f.size).arrayBuffer()));
+      return tag;
+    }catch(e){ return null; }
+  }
+  function tagItemAsync(item,f){
+    tagFromFile(f).then(tag=>{ if(tag){ item.title=tagLabel(tag,item.title); item.tagged=true;
+      renderPlaylist(); savePlaylist(); if(list[idx]===item) setTitle((idx+1)+'. '+item.title); } });
+  }
 
   /* ---- víc playlistů ---- */
   function ensureDefault(){
@@ -259,8 +330,26 @@
       li.appendChild(num);
       li.appendChild(document.createTextNode(t.title));   // název souboru NIKDY přes innerHTML (XSS ze zlého názvu MP3)
       li.onclick=()=>{ load(i,true); };
+      // reorder přetažením uvnitř playlistu
+      li.draggable=true;
+      li.addEventListener('dragstart', e=>{ dragSrc=i;
+        e.dataTransfer.setData('text/kbcalc', String(i)); e.dataTransfer.effectAllowed='move'; });
+      li.addEventListener('dragover', e=>{ if(dragSrc===null) return;
+        e.preventDefault(); e.stopPropagation(); li.classList.add('dropmark'); });
+      li.addEventListener('dragleave', ()=>li.classList.remove('dropmark'));
+      li.addEventListener('drop', e=>{ if(dragSrc===null) return;
+        e.preventDefault(); e.stopPropagation(); const from=dragSrc; dragSrc=null; moveTrack(from, i); });
+      li.addEventListener('dragend', ()=>{ dragSrc=null;
+        plEl.querySelectorAll('.dropmark').forEach(x=>x.classList.remove('dropmark')); });
       plEl.appendChild(li);
     });
+  }
+  function moveTrack(from,to){
+    if(from===to||from<0||to<0||from>=list.length||to>=list.length) return;
+    const cur = idx>=0 ? list[idx] : null;
+    const [it]=list.splice(from,1); list.splice(to,0,it);
+    if(cur) idx=list.indexOf(cur);
+    renderPlaylist(); savePlaylist();
   }
 
   function setTitle(txt){ miniTitle.textContent=txt; trackTitle.textContent=txt; }
@@ -271,7 +360,9 @@
     // lazy: soubory přetažené/obnovené mají jen path → načti bytes z disku až teď
     if(!t.url && t.path && window.win && window.win.readFile){
       try{ const bytes=await window.win.readFile(t.path);
-        if(bytes){ t.url=URL.createObjectURL(new Blob([bytes])); t._lazy=true; } }catch(e){}
+        if(bytes){
+          if(!t.tagged){ const tag=parseId3(bytes); if(tag) t.title=tagLabel(tag,t.title); t.tagged=true; }
+          t.url=URL.createObjectURL(new Blob([bytes])); t._lazy=true; } }catch(e){}
     }
     // uvolni předchozí object URL: lazy bloby (v RAM) vždy; File-URL jen když jde znovu načíst z disku
     if(curUrlTrack && curUrlTrack!==t && curUrlTrack.url){
@@ -298,6 +389,44 @@
     if(autoplay) play();
   }
 
+  /* ---- shuffle / repeat (persistované režimy) ---- */
+  let shuffle=false, repeat='all';
+  try{ shuffle = localStorage.getItem('kbcalc.shuffle')==='1';
+       const r = localStorage.getItem('kbcalc.repeat'); if(['off','all','one'].includes(r)) repeat=r; }catch(e){}
+  const shufBtn=document.getElementById('shufBtn'), repBtn=document.getElementById('repBtn');
+  function updateModes(){
+    shufBtn.classList.toggle('on', shuffle);
+    repBtn.classList.toggle('on', repeat!=='off');
+    repBtn.textContent = repeat==='one' ? '🔂' : '🔁';
+    repBtn.title = tr(repeat==='one'?'repOne':repeat==='all'?'repAll':'repOff');
+  }
+  shufBtn.onclick=()=>{ shuffle=!shuffle;
+    try{ localStorage.setItem('kbcalc.shuffle', shuffle?'1':'0'); }catch(e){} updateModes(); };
+  repBtn.onclick=()=>{ repeat = repeat==='off'?'all':repeat==='all'?'one':'off';
+    try{ localStorage.setItem('kbcalc.repeat', repeat); }catch(e){} updateModes(); };
+  updateModes();
+
+  /* ---- ekvalizér: 5 pásem (lowshelf/peaking/highshelf) + presety ---- */
+  const EQ_FREQS=[60,250,1000,4000,12000];
+  const EQ_PRESETS={ flat:[0,0,0,0,0], rock:[5,3,-1,2,4], pop:[-1,2,4,2,-1],
+                     jazz:[3,1,0,2,3], bass:[7,4,0,0,0], vocal:[-2,0,4,3,0] };
+  let eqGains=[0,0,0,0,0], eqPresetName='flat';
+  try{ const s=JSON.parse(localStorage.getItem('kbcalc.eq')||'null');
+    if(s && Array.isArray(s.g) && s.g.length===5){ eqGains=s.g.map(Number); eqPresetName=s.p||'custom'; } }catch(e){}
+  const eqPanel=document.getElementById('eqPanel'), eqSel=document.getElementById('eqPreset');
+  const eqSliders=[...document.querySelectorAll('.eqSlider')];
+  const eqBtn=document.getElementById('eqBtn');
+  function applyEq(){ if(audio._graph && audio._graph.eqs)
+    audio._graph.eqs.forEach((f,i)=>{ f.gain.value=eqGains[i]; }); }
+  const eqSave=()=>{ try{ localStorage.setItem('kbcalc.eq', JSON.stringify({g:eqGains,p:eqPresetName})); }catch(e){} };
+  const eqRender=()=>{ eqSliders.forEach((s,i)=>{ s.value=eqGains[i]; }); eqSel.value=eqPresetName; };
+  eqSliders.forEach(s=>s.addEventListener('input',()=>{ eqGains[+s.dataset.band]=+s.value;
+    eqPresetName='custom'; eqSel.value='custom'; applyEq(); eqSave(); }));
+  eqSel.addEventListener('change',()=>{ const p=EQ_PRESETS[eqSel.value]; if(!p) return;
+    eqPresetName=eqSel.value; eqGains=p.slice(); eqRender(); applyEq(); eqSave(); });
+  eqBtn.onclick=()=>{ eqPanel.hidden=!eqPanel.hidden; eqBtn.classList.toggle('on', !eqPanel.hidden); };
+  eqRender();
+
   function ensureAudioGraph(){
     if(audio._graph) return;
     try{
@@ -307,12 +436,18 @@
       const analyser = ctx.createAnalyser(); analyser.fftSize=256; analyser.smoothingTimeConstant=0.82;
       const panner = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
       const gain = ctx.createGain();
+      // src → EQ pásma → analyser → balance → volume → výstup
+      const eqs = EQ_FREQS.map((fr,i)=>{ const f=ctx.createBiquadFilter();
+        f.type = i===0 ? 'lowshelf' : i===EQ_FREQS.length-1 ? 'highshelf' : 'peaking';
+        f.frequency.value=fr; if(f.type==='peaking') f.Q.value=1.0;
+        f.gain.value=eqGains[i]; return f; });
       let node = src;
+      for(const f of eqs){ node.connect(f); node=f; }
       node.connect(analyser);
       if(panner){ analyser.connect(panner); panner.connect(gain); }
       else analyser.connect(gain);
       gain.connect(ctx.destination);
-      audio._graph={ctx,analyser,panner,gain,
+      audio._graph={ctx,analyser,panner,gain,eqs,
         freq:new Uint8Array(analyser.frequencyBinCount),
         time:new Uint8Array(analyser.fftSize)};
       applyVol(); applyBal();
@@ -332,14 +467,26 @@
   function pause(){ audio.pause(); }
   function toggle(){ audio.paused ? play() : pause(); }
   function stop(){ audio.pause(); audio.currentTime=0; }
-  function next(){ if(list.length) load((idx+1)%list.length, !audio.paused||playing); }
-  function prev_(){ if(list.length) load((idx-1+list.length)%list.length, !audio.paused||playing); }
+  function pickNext(dir){
+    if(shuffle && list.length>1){ let n; do{ n=Math.floor(Math.random()*list.length); }while(n===idx); return n; }
+    return (idx+dir+list.length)%list.length;
+  }
+  function next(){ if(list.length) load(pickNext(1), !audio.paused||playing); }
+  function prev_(){ if(list.length) load(pickNext(-1), !audio.paused||playing); }
+  function onEnded(){                        // konec skladby řídí repeat/shuffle režim
+    if(!list.length) return;
+    if(repeat==='one'){ load(idx,true); return; }
+    if(shuffle && list.length>1){ load(pickNext(1),true); return; }
+    const n=idx+1;
+    if(n>=list.length){ if(repeat==='all') load(0,true); else stop(); return; }
+    load(n,true);
+  }
 
   audio.addEventListener('play', ()=>{ playing=true; playBtn.textContent='⏸'; miniPlay.textContent='⏸';
     trackTitle.classList.remove('paused'); draw(); });
   audio.addEventListener('pause', ()=>{ playing=false; playBtn.textContent='▶'; miniPlay.textContent='▶';
     trackTitle.classList.add('paused'); if(typeof savePlaylist==='function') savePlaylist(); });
-  audio.addEventListener('ended', next);
+  audio.addEventListener('ended', onEnded);
   audio.addEventListener('timeupdate', ()=>{
     const d=audio.duration||0, c=audio.currentTime||0;
     timeEl.textContent=secfmt(c);
@@ -354,7 +501,7 @@
 
   // transport buttons
   document.querySelector('.transport').addEventListener('click', e=>{
-    const b=e.target.closest('.tbtn'); if(!b) return;
+    const b=e.target.closest('.tbtn'); if(!b || !b.dataset.t) return;   // mode tlačítka mají vlastní handlery
     ({play:toggle, stop, next, prev:prev_, eject:()=>fileInput.click()})[b.dataset.t]();
   });
   miniPlay.onclick=toggle;
@@ -368,7 +515,8 @@
     const startEmpty = list.length===0;
     files.forEach(f=>{
       const p = (window.win && window.win.getPath) ? window.win.getPath(f) : (f.path||'');
-      list.push({title:nameFrom(f), url:URL.createObjectURL(f), path:p});
+      const item={title:nameFrom(f), url:URL.createObjectURL(f), path:p};
+      list.push(item); tagItemAsync(item,f);
     });
     renderTabs(); renderPlaylist(); savePlaylist();
     if(startEmpty && list.length){ load(0,true); setOpen(true); }
@@ -393,9 +541,11 @@
   }
   const dropHint = on => document.body.classList.toggle('dragging', !!on);
   ['dragenter','dragover'].forEach(ev=>document.addEventListener(ev, e=>{
+    if(dragSrc!==null) return;                                       // interní reorder, ne soubory
     e.preventDefault(); if(e.dataTransfer) e.dataTransfer.dropEffect='copy'; dropHint(true); }));
   document.addEventListener('dragleave', e=>{ if(!e.relatedTarget) dropHint(false); });
   document.addEventListener('drop', async e=>{
+    if(dragSrc!==null){ e.preventDefault(); dragSrc=null; dropHint(false); return; }
     e.preventDefault(); dropHint(false);
     const files=[...((e.dataTransfer&&e.dataTransfer.files)||[])];
     if(!files.length) return;
@@ -406,7 +556,8 @@
     } else {                                                          // prohlížeč: jen zvukové soubory do aktuálního
       const curEmpty=list.length===0;
       files.filter(f=>f.type.startsWith('audio/')||AUDIO_RE.test(f.name))
-           .forEach(f=>list.push({title:nameFrom(f), url:URL.createObjectURL(f), path:(f.path||'')}));
+           .forEach(f=>{ const item={title:nameFrom(f), url:URL.createObjectURL(f), path:(f.path||'')};
+             list.push(item); tagItemAsync(item,f); });
       renderTabs(); renderPlaylist(); savePlaylist(); setOpen(true); if(curEmpty && list.length) load(0,true);
     }
   });
@@ -498,6 +649,12 @@
     // běh v obyčejném prohlížeči — schovej tlačítka okna
     ['pinBtn','minBtn','closeBtn'].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display='none'; });
   }
+  // hardwarová media tlačítka + tray ovládání
+  if(wc && wc.onMedia){
+    wc.onMedia(a=>{ if(a==='playpause') toggle(); else if(a==='next') next();
+                    else if(a==='prev') prev_(); else if(a==='stop') stop(); });
+  }
+  if(wc && wc.notifyLang) wc.notifyLang(lang);   // tray menu ve správném jazyce hned od startu
 
 
   /* ---------- VISUALIZER ---------- */

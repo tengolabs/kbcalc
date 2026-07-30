@@ -24,14 +24,23 @@ with a real-time visualizer.
   *only* the calculator, with a mini play/next control in the bottom bar.
 
 **Player**
-- Transport controls (prev / play–pause / stop / next / eject-to-add-files).
-- VOLUME and BALANCE sliders backed by Web Audio.
+- Transport controls (prev / play–pause / stop / next / eject-to-add-files),
+  plus **shuffle** and **repeat** (off / all / one) — both remembered.
+- **Hardware media keys** work even when the app is in the background
+  (play/pause, next, previous, stop).
+- **Tray icon**: show/hide the window, playback controls, quit.
+- VOLUME and BALANCE sliders backed by Web Audio, plus a **5-band equalizer**
+  (60 Hz – 12 kHz, presets: Flat/Rock/Pop/Jazz/Bass+/Vocal, remembered).
+- **ID3 tags**: tracks display "Artist – Title" read from ID3v2/ID3v1
+  (dependency-free parser); falls back to the file name.
+
+  <img src="docs/player.png" width="380" alt="Player with equalizer open">
 - **Multiple named playlists**: create, inline-rename, delete, switch from the
   header dropdown. Playlists persist across restarts (file paths are stored;
   audio is lazy-loaded so at most one track is held in memory).
 - **Drag & drop**: drop files to add them to the current playlist; drop a
   folder to create a new playlist named after it (recursive scan, audio files
-  only, sorted).
+  only, sorted). Reorder tracks by dragging them within the playlist.
 - Dead/missing files are skipped automatically during playback.
 - Supported formats: mp3, m4a, ogg/oga, wav, flac, aac, opus, wma
   (whatever the OS media stack can decode).
@@ -45,6 +54,7 @@ with a real-time visualizer.
 
 **Window**
 - Always-on-top toggle (`◉`), minimize, close — all custom, no OS title bar.
+- Window position is remembered across restarts.
 - About dialog (`ⓘ`) with project links and the app version. Once a day the app
   anonymously asks the GitHub Releases API whether a newer version exists and
   offers a link to the release notes — no telemetry, nothing is ever uploaded.
