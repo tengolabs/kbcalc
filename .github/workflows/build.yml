@@ -25,11 +25,12 @@ jobs:
 
       - run: npm ci
 
-      # Bez GH_TOKEN: build ho nepotřebuje (release připíná až action-gh-release
-      # s vlastním tokenem) a token s právem zápisu nemá co dělat v prostředí
-      # stovek transitivních závislostí electron-builderu.
+      # Bez GH_TOKEN: token s právem zápisu nemá co dělat v prostředí stovek
+      # transitivních závislostí electron-builderu. Builder se ale v CI snaží
+      # sám publishovat (a bez tokenu spadne) → --publish never; release
+      # připíná až action-gh-release s vlastním tokenem.
       - name: Build instalátory
-        run: npm run dist
+        run: npm run dist -- --publish never
 
       # Artefakty JEN u ručního běhu (workflow_dispatch) — na tagu jde totéž do
       # Release a dvojí uložení dřív přeteklo Actions storage kvótu (artefakty
