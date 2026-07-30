@@ -1,9 +1,9 @@
 {
-  "name": "calcamp",
+  "name": "kbcalc",
   "version": "1.0.2",
-  "description": "Plovoucí kalkulačka s vestavěným MP3 přehrávačem ve stylu Winampu (Electron, cross-platform)",
+  "description": "Floating calculator with a built-in Winamp-style MP3 player (Electron, cross-platform)",
   "author": "Richard <info@killbottleneck.com>",
-  "homepage": "https://github.com/tengosro/calcamp",
+  "homepage": "https://github.com/tengosro/kbcalc",
   "license": "MIT",
   "main": "main.js",
   "scripts": {
@@ -18,15 +18,15 @@
     "electron-builder": "^25.1.8"
   },
   "build": {
-    "appId": "cz.aijarmark.calcamp",
-    "productName": "CalcAmp",
+    "appId": "com.tengolabs.kbcalc",
+    "productName": "kbCalc",
     "files": [
       "main.js",
       "preload.js",
       "index.html",
       "app.js",
       "app.css",
-      "calcamp.svg"
+      "kbcalc.svg"
     ],
     "directories": {
       "buildResources": "build",

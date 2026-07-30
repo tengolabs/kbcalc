@@ -1,6 +1,86 @@
 (function(){
   "use strict";
 
+  /* ---------- I18N (cs/en) ----------
+     Překlady drží tenhle slovník; statické texty mají v HTML data-i18n /
+     data-i18n-title, dynamické se berou přes tr() v místě vzniku.
+     Jazyk: uložená volba > jazyk systému (cs/sk → čeština, jinak angličtina). */
+  const I18N = {
+    cs: {
+      ttInfo:'O aplikaci', ttPin:'Vždy navrchu', ttMin:'Minimalizovat', ttClose:'Zavřít',
+      ttMiniPlay:'Přehrát / pauza', ttMiniNext:'Další skladba', ttExpand:'Otevřít přehrávač',
+      ttCollapse:'Sbalit', ttVizCanvas:'Klikni pro změnu stylu vizualizéru',
+      ttVizStyle:'Změnit styl vizualizéru', ttVizFull:'Vizualizér na celou obrazovku',
+      ttPrev:'Předchozí', ttPlay:'Přehrát/Pauza', ttStop:'Stop', ttNext:'Další', ttEject:'Přidat soubory',
+      ttPlSwitch:'Přepnout playlist', ttPlNew:'Nový prázdný playlist', ttPlRename:'Přejmenovat playlist',
+      ttPlDel:'Smazat playlist',
+      vizEnlarge:'⛶ ZVĚTŠIT', vizHint:'klik = změnit styl · Esc = návrat',
+      marqueeHint:'KBCALC · nahraj MP3 přes tlačítko ⏏ a spusť přehrávání',
+      noTrack:'— žádná skladba —',
+      plEmpty:'Playlist je prázdný. Přetáhni sem MP3 / složku, nebo klikni ⏏.',
+      delConfirm:'Smazat playlist „{name}“?\n(hudební soubory na disku zůstanou)',
+      skipMsg:'⚠ {title} — soubor nedostupný, přeskakuji…',
+      noPlayable:'⚠ žádný přehratelný soubor', unavailable:'(nedostupný)',
+      aboutTitle:'◈ O APLIKACI KBCALC',
+      aboutDesc:'Plovoucí kalkulačka s vestavěným MP3 přehrávačem ve stylu Winampu. '
+        + 'Ukázková open source aplikace (MIT) od tvůrců killBottleneck — stáhněte, upravte, používejte i komerčně.',
+      linkGithubSub:'zdrojový kód, hlášení chyb, nové verze',
+      linkWebSub:'nástroje proti úzkým hrdlům od stejných autorů',
+      linkYt:'YouTube kanál', linkYtSub:'návody, novinky a AI experimenty od autorů',
+      linkDc:'Komunita na Discordu', linkDcSub:'otázky, nápady, pomoc',
+      version:'Verze {v}', updAvail:'Je dostupná verze {v}',
+      updCur:'Máte {v} — klikněte pro poznámky k vydání',
+      authors:'Autoři: Richard Pobrislo · Claude Fable 5',
+      viz:['SPEKTRUM','ZRCADLO','BLOKY','VLNA','NORA'],
+    },
+    en: {
+      ttInfo:'About', ttPin:'Always on top', ttMin:'Minimize', ttClose:'Close',
+      ttMiniPlay:'Play / pause', ttMiniNext:'Next track', ttExpand:'Open the player',
+      ttCollapse:'Collapse', ttVizCanvas:'Click to change visualizer style',
+      ttVizStyle:'Change visualizer style', ttVizFull:'Fullscreen visualizer',
+      ttPrev:'Previous', ttPlay:'Play/Pause', ttStop:'Stop', ttNext:'Next', ttEject:'Add files',
+      ttPlSwitch:'Switch playlist', ttPlNew:'New empty playlist', ttPlRename:'Rename playlist',
+      ttPlDel:'Delete playlist',
+      vizEnlarge:'⛶ ENLARGE', vizHint:'click = change style · Esc = back',
+      marqueeHint:'KBCALC · load MP3s via the ⏏ button and hit play',
+      noTrack:'— no track —',
+      plEmpty:'Playlist is empty. Drop MP3s / a folder here, or click ⏏.',
+      delConfirm:'Delete playlist "{name}"?\n(audio files stay on disk)',
+      skipMsg:'⚠ {title} — file unavailable, skipping…',
+      noPlayable:'⚠ no playable file', unavailable:'(unavailable)',
+      aboutTitle:'◈ ABOUT KBCALC',
+      aboutDesc:'A floating calculator with a built-in Winamp-style MP3 player. '
+        + 'A showcase open source app (MIT) from the makers of killBottleneck — download it, tweak it, use it commercially.',
+      linkGithubSub:'source code, issue reports, releases',
+      linkWebSub:'bottleneck-killing tools by the same authors',
+      linkYt:'YouTube channel', linkYtSub:'tutorials, news and AI experiments from the authors',
+      linkDc:'Discord community', linkDcSub:'questions, ideas, help',
+      version:'Version {v}', updAvail:'Version {v} is available',
+      updCur:'You have {v} — click for release notes',
+      authors:'Authors: Richard Pobrislo · Claude Fable 5',
+      viz:['SPECTRUM','MIRROR','BLOCKS','WAVE','TUNNEL'],
+    },
+  };
+  let lang = (()=>{ try{ const s=localStorage.getItem('kbcalc.lang'); if(s==='cs'||s==='en') return s; }catch(e){}
+    const nl=(navigator.language||'').toLowerCase();
+    return (nl.startsWith('cs')||nl.startsWith('sk')) ? 'cs' : 'en'; })();
+  const tr = k => (I18N[lang] && I18N[lang][k]) !== undefined ? I18N[lang][k] : (I18N.cs[k] !== undefined ? I18N.cs[k] : k);
+  function applyI18n(){
+    document.documentElement.lang = lang;
+    document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = tr(el.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-title]').forEach(el=>{ el.title = tr(el.dataset.i18nTitle); });
+    document.querySelectorAll('.langBtn').forEach(b=>b.classList.toggle('on', b.dataset.lang===lang));
+  }
+  function setLang(l){
+    if(l===lang) return;
+    lang=l; try{ localStorage.setItem('kbcalc.lang', l); }catch(e){}
+    applyI18n();
+    // dynamické texty, které applyI18n nepokryje (přepsané za běhu)
+    setStyleLabels();
+    renderPlaylist();
+    if(idx<0) setTitle(tr('noTrack'));
+  }
+
   /* ---------- CALCULATOR ---------- */
   const outEl = document.getElementById('out');
   const exprEl = document.getElementById('expr');
@@ -95,7 +175,6 @@
 
   const secfmt = s => { s=Math.floor(s||0); return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); };
   const nameFrom = f => f.name.replace(/\.[^.]+$/,'');
-  const EMPTY_MSG = 'Playlist je prázdný. Přetáhni sem MP3 / složku, nebo klikni ⏏.';
 
   /* ---- víc playlistů ---- */
   function ensureDefault(){
@@ -124,20 +203,20 @@
     idx = Math.min(Math.max(-1, playlists[j].idx|0), list.length-1);
     renderTabs(); renderPlaylist(); savePlaylist();
     // přepnutí nepřeruší přehrávání; když nic nehraje, jen připrav (bez spuštění)
-    if(audio.paused){ if(idx>=0) load(idx,false); else setTitle('— žádná skladba —'); }
+    if(audio.paused){ if(idx>=0) load(idx,false); else setTitle(tr('noTrack')); }
   }
   function newEmptyPlaylist(){
     const j=addPlaylist('Playlist '+(playlists.length+1), []);
     switchPlaylist(j); setOpen(true); startRename();
   }
   function delPlaylist(){
-    if(!confirm('Smazat playlist „'+playlists[activePl].name+'“?\n(hudební soubory na disku zůstanou)')) return;
+    if(!confirm(tr('delConfirm').replace('{name}', playlists[activePl].name))) return;
     playlists.splice(activePl,1);
     ensureDefault();
     activePl=Math.min(activePl, playlists.length-1); list=playlists[activePl].items;
     idx=Math.min(Math.max(-1, playlists[activePl].idx|0), list.length-1);
     renderTabs(); renderPlaylist(); savePlaylist();
-    if(audio.paused){ if(idx>=0) load(idx,false); else setTitle('— žádná skladba —'); }
+    if(audio.paused){ if(idx>=0) load(idx,false); else setTitle(tr('noTrack')); }
   }
   function startRename(){
     const nm=document.getElementById('plName'); if(!nm || document.getElementById('plRenameInput')) return;
@@ -168,7 +247,10 @@
   function closePlMenu(){ plMenu.classList.remove('on'); }
 
   function renderPlaylist(){
-    if(!list.length){ plEl.innerHTML='<li class="empty">'+EMPTY_MSG+'</li>'; return; }
+    if(!list.length){
+      const li=document.createElement('li'); li.className='empty'; li.textContent=tr('plEmpty');
+      plEl.innerHTML=''; plEl.appendChild(li); return;
+    }
     plEl.innerHTML='';
     list.forEach((t,i)=>{
       const li=document.createElement('li');
@@ -204,10 +286,10 @@
     if(!t.url){
       if(autoplay && list.length>1 && loadFailStreak < list.length-1){
         loadFailStreak++;
-        setTitle('⚠ '+t.title+' — soubor nedostupný, přeskakuji…');
+        setTitle(tr('skipMsg').replace('{title}', t.title));
         return load((i+1)%list.length, true);
       }
-      setTitle(autoplay ? '⚠ žádný přehratelný soubor' : (i+1)+'. '+t.title+' (nedostupný)');
+      setTitle(autoplay ? tr('noPlayable') : (i+1)+'. '+t.title+' '+tr('unavailable'));
       loadFailStreak=0;
       return;
     }
@@ -346,12 +428,15 @@
         name: pl.name, idx: pl.idx|0,
         items: pl.items.filter(t=>t.path).map(t=>({title:t.title, path:t.path}))
       }));
-      localStorage.setItem('calcamp.playlists',
+      localStorage.setItem('kbcalc.playlists',
         JSON.stringify({ playlists:pls, active:activePl, time:audio.currentTime||0 }));
     }catch(e){}
   }
   async function restorePlaylist(){
-    let data; try{ data=JSON.parse(localStorage.getItem('calcamp.playlists')||'null'); }catch(e){}
+    let data; try{ data=JSON.parse(localStorage.getItem('kbcalc.playlists')||'null'); }catch(e){}
+    if(!data){                                             // migrace z dob, kdy se appka jmenovala CalcAmp
+      try{ data=JSON.parse(localStorage.getItem('calcamp.playlists')||'null'); }catch(e){}
+    }
     if(!data){                                             // migrace ze staré jednoplaylistové verze
       let old; try{ old=JSON.parse(localStorage.getItem('calcamp.playlist')||'null'); }catch(e){}
       if(old && old.items && old.items.length)
@@ -546,8 +631,8 @@
     if(wc && wc.setFullScreen){ wc.setFullScreen(false); }
     else if(document.fullscreenElement){ document.exitFullscreen().catch(()=>{}); }
   }
-  function setStyleLabels(){ const t=STYLES[vizStyle];
-    ['vizStyleLabel','vizFullStyle'].forEach(id=>{ const e=document.getElementById(id); if(e) e.textContent=t; }); }
+  function setStyleLabels(){ const lbl=tr('viz')[vizStyle] || STYLES[vizStyle];
+    ['vizStyleLabel','vizFullStyle'].forEach(id=>{ const e=document.getElementById(id); if(e) e.textContent=lbl; }); }
   function cycleStyle(){ vizStyle=(vizStyle+1)%STYLES.length; setStyleLabels(); }
 
   document.getElementById('vizStyleBtn').onclick=cycleStyle;
@@ -563,20 +648,26 @@
 
   /* ---------- O APLIKACI ---------- */
   const about = document.getElementById('about');
+  let verInfo = null;
+  function renderVersion(){
+    const v = verInfo; if(!v) return;
+    document.getElementById('aboutVersion').textContent =
+      v.version ? tr('version').replace('{v}', v.version) : '';
+    const up = document.getElementById('aboutUpdate');
+    if (v.hasUpdate) {
+      document.getElementById('aboutUpdateTitle').textContent = tr('updAvail').replace('{v}', v.latest);
+      document.getElementById('aboutUpdateSub').textContent = tr('updCur').replace('{v}', v.version);
+      up.hidden = false;
+    } else up.hidden = true;
+  }
   document.getElementById('infoBtn').addEventListener('click', async () => {
     about.classList.add('on');
-    try {
-      const v = await window.win.versionInfo();
-      document.getElementById('aboutVersion').textContent = v.version ? 'Verze ' + v.version : '';
-      const up = document.getElementById('aboutUpdate');
-      if (v.hasUpdate) {
-        document.getElementById('aboutUpdateTitle').textContent = 'Je dostupná verze ' + v.latest;
-        document.getElementById('aboutUpdateSub').textContent =
-          'Máte ' + v.version + ' — klikněte pro poznámky k vydání';
-        up.hidden = false;
-      } else up.hidden = true;
-    } catch (e) { /* bez IPC (prohlížečový fallback) dialog prostě nemá verzi */ }
+    try { verInfo = await window.win.versionInfo(); renderVersion(); }
+    catch (e) { /* bez IPC (prohlížečový fallback) dialog prostě nemá verzi */ }
   });
+  document.querySelectorAll('.langBtn').forEach(b =>
+    b.addEventListener('click', () => { setLang(b.dataset.lang); renderVersion(); }));
+  applyI18n(); setStyleLabels();
   document.getElementById('aboutClose').addEventListener('click', () => about.classList.remove('on'));
   about.addEventListener('click', e => { if (e.target === about) about.classList.remove('on'); });
   document.querySelectorAll('.about-link[data-link]').forEach(b =>

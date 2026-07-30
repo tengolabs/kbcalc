@@ -6,12 +6,12 @@ const fs = require('fs');
 // Odkazy se otevírají VÝHRADNĚ v systémovém prohlížeči a jen z tohoto allowlistu —
 // renderer posílá klíč, nikdy URL (i při XSS nejde otevřít nic cizího).
 const LINKS = {
-  github: 'https://github.com/tengosro/calcamp',   // TODO při zveřejnění: tengolabs/<finální název>
+  github: 'https://github.com/tengosro/kbcalc',   // TODO při zveřejnění na tengolabs: tengolabs/kbcalc
   web: 'https://killbottleneck.com',
   youtube: 'https://www.youtube.com/@ctrlaltaicz',
   discord: 'https://discord.gg/dkxMdVKwXw',
 };
-const UPDATE_REPO = 'tengosro/calcamp';            // TODO při zveřejnění: tengolabs/<finální název>
+const UPDATE_REPO = 'tengosro/kbcalc';            // TODO při zveřejnění na tengolabs: tengolabs/kbcalc
 let releaseUrl = '';                               // jen z poslední ověřené odpovědi GitHubu
 
 // "v1.2" vs "1.10" — porovnávají se číselné části (stejná logika jako killBottleneck)
@@ -39,6 +39,24 @@ if (process.platform === 'linux') {
   app.commandLine.appendSwitch('disable-gpu-sandbox');
 }
 
+// Jednorázová migrace profilu z dob, kdy se appka jmenovala CalcAmp: jiný název
+// = jiná userData složka, bez tohohle by se ztratily uložené playlisty.
+// Musí proběhnout PŘED otevřením okna (než si Chromium profil zamkne).
+// Kopíruje se JEN "Local Storage" — kopie celého profilu padá na speciálních
+// souborech Chromia (SingletonSocket = unix socket) a caches stejně nechceme.
+try {
+  const ud = app.getPath('userData');
+  const newLs = path.join(ud, 'Local Storage');
+  // Pozor: samotná userData složka vzniká hned při startu Electronu (Crashpad),
+  // proto se první běh pozná podle chybějícího "Local Storage", ne podle userData.
+  if (!fs.existsSync(newLs)) {
+    for (const old of ['CalcAmp', 'calcamp']) {          // packaged vs. dev název
+      const oldLs = path.join(path.dirname(ud), old, 'Local Storage');
+      if (fs.existsSync(oldLs)) { fs.cpSync(oldLs, newLs, { recursive: true }); break; }
+    }
+  }
+} catch (e) { console.warn('profile migration:', e); }
+
 let win;
 
 function createWindow() {
@@ -53,8 +71,8 @@ function createWindow() {
     hasShadow: true,
     backgroundColor: '#00000000',
     skipTaskbar: false,
-    title: 'CalcAmp',
-    icon: path.join(__dirname, 'calcamp.svg'),
+    title: 'kbCalc',
+    icon: path.join(__dirname, 'kbcalc.svg'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -63,7 +81,7 @@ function createWindow() {
     },
   });
 
-  const q = process.env.CALCAMP_OPEN ? { query: { open: '1' } } : undefined;
+  const q = process.env.KBCALC_OPEN ? { query: { open: '1' } } : undefined;
   win.loadFile('index.html', q);
   // win.webContents.openDevTools({ mode: 'detach' });
 

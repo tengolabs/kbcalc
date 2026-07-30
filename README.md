@@ -1,11 +1,11 @@
-# CalcAmp
+# kbCalc
 
 *Čtete raději česky? → [README.cs.md](README.cs.md)*
 
 A floating, translucent **calculator** with a built-in **Winamp-style MP3 player**.
 Built on Electron — one codebase for **Linux, Windows and macOS**.
 
-![CalcAmp — calculator with the player expanded](docs/screenshot.png)
+![kbCalc — calculator with the player expanded](docs/screenshot.png)
 
 The window is frameless and translucent. At first glance it is just a calculator —
 the `▶` arrow in the bottom bar expands a full music player next to it, complete
@@ -49,7 +49,7 @@ with a real-time visualizer.
 
   <img src="docs/about.png" width="380" alt="About dialog">
 
-> **Note:** the UI is currently in Czech.
+> The UI speaks **Czech and English** — it follows the system language and can be switched in the About dialog.
 
 ## Install
 
@@ -57,7 +57,7 @@ Grab an installer from the [Releases](../../releases) page:
 
 | OS | Package |
 |---|---|
-| Windows | NSIS installer (`CalcAmp Setup x.y.z.exe`) or portable `.exe` |
+| Windows | NSIS installer (`kbCalc Setup x.y.z.exe`) or portable `.exe` |
 | Linux | `.AppImage` or `.deb` (x64) |
 | macOS | `.dmg` / `.zip` (Apple Silicon) |
 
@@ -112,10 +112,10 @@ Found a vulnerability? See [SECURITY.md](SECURITY.md).
 
 ## Authors
 
-**Richard** and **Claude Fable 5** (Anthropic) — from the makers of
+**Richard Pobrislo** and **Claude Fable 5** (Anthropic) — from the makers of
 [killBottleneck](https://killbottleneck.com). Tutorials, news and AI
 experiments on YouTube: [@ctrlaltaicz](https://www.youtube.com/@ctrlaltaicz).
 
 ## License
 
-[MIT](LICENSE) © 2026 Richard (tengosro)
+[MIT](LICENSE) © 2026 Richard Pobrislo

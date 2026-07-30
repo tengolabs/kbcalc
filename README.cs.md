@@ -1,11 +1,11 @@
-# CalcAmp
+# kbCalc
 
 *Prefer English? → [README.md](README.md)*
 
 Plovoucí průhledná **kalkulačka** s vestavěným **MP3 přehrávačem ve stylu Winampu**.
 Postavené na Electronu, jedna codebase pro **Linux, Windows i macOS**.
 
-![CalcAmp — kalkulačka s rozbaleným přehrávačem](docs/screenshot.png)
+![kbCalc — kalkulačka s rozbaleným přehrávačem](docs/screenshot.png)
 
 Okno je frameless a průhledné — na první pohled jen kalkulačka, šipka `▶`
 v dolní liště vedle ní vysune plnohodnotný přehrávač s vizualizérem.
@@ -45,6 +45,8 @@ v dolní liště vedle ní vysune plnohodnotný přehrávač s vizualizérem.
   poznámky k vydání — žádná telemetrie, nic se nikam neodesílá.
 
   <img src="docs/about.png" width="380" alt="Dialog O aplikaci">
+
+> Rozhraní mluví **česky i anglicky** — řídí se jazykem systému a přepíná se v dialogu O aplikaci.
 
 ## Instalace
 
@@ -97,10 +99,10 @@ Našli jste zranitelnost? Viz [SECURITY.md](SECURITY.md).
 
 ## Autoři
 
-**Richard** a **Claude Fable 5** (Anthropic) — od tvůrců
+**Richard Pobrislo** a **Claude Fable 5** (Anthropic) — od tvůrců
 [killBottleneck](https://killbottleneck.com). Návody, novinky a AI experimenty
 na YouTube: [@ctrlaltaicz](https://www.youtube.com/@ctrlaltaicz).
 
 ## Licence
 
-[MIT](LICENSE) © 2026 Richard (tengosro)
+[MIT](LICENSE) © 2026 Richard Pobrislo

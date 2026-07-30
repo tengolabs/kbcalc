@@ -256,3 +256,8 @@
   .about-link.update b{ color:var(--lcd); }
   .about-foot{ display:flex; justify-content:space-between; gap:8px; font-size:10.5px; color:#7d7d7d;
     border-top:1px solid #383838; padding-top:7px; }
+  .langSwitch{ margin-left:7px; }
+  .langBtn{ background:none; border:1px solid #3a3a3a; border-radius:4px; color:#8b8b8b;
+    font:inherit; font-size:10px; padding:1px 5px; cursor:pointer; margin-left:3px; }
+  .langBtn:hover{ color:#ccc; }
+  .langBtn.on{ color:var(--lcd); border-color:var(--lcd-dim); }

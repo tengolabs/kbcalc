@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
-<title>CalcAmp</title>
+<title>kbCalc</title>
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -12,13 +12,13 @@
   <!-- CALCULATOR -->
   <div id="calc">
     <div class="brand">
-      <span>CALC<b>AMP</b></span>
+      <span>kb<b>CALC</b></span>
       <span class="wc">
         <span id="clock">88:88</span>
-        <button class="wcbtn" id="infoBtn" title="O aplikaci">ⓘ</button>
-        <button class="wcbtn" id="pinBtn" title="Vždy navrchu">◉</button>
-        <button class="wcbtn" id="minBtn" title="Minimalizovat">–</button>
-        <button class="wcbtn close" id="closeBtn" title="Zavřít">✕</button>
+        <button class="wcbtn" id="infoBtn" data-i18n-title="ttInfo">ⓘ</button>
+        <button class="wcbtn" id="pinBtn" data-i18n-title="ttPin">◉</button>
+        <button class="wcbtn" id="minBtn" data-i18n-title="ttMin">–</button>
+        <button class="wcbtn close" id="closeBtn" data-i18n-title="ttClose">✕</button>
       </span>
     </div>
     <div class="display">
@@ -54,22 +54,22 @@
 
     <!-- now-playing mini bar -->
     <div id="nowbar">
-      <div id="miniPlay" title="Přehrát / pauza">▶</div>
-      <div id="miniNext" title="Další skladba">⏭</div>
+      <div id="miniPlay" data-i18n-title="ttMiniPlay">▶</div>
+      <div id="miniNext" data-i18n-title="ttMiniNext">⏭</div>
       <div id="miniWrap">
-        <div id="miniTitle">— žádná skladba —</div>
+        <div id="miniTitle" data-i18n="noTrack">— žádná skladba —</div>
         <div id="miniProg"><div id="miniBar"></div></div>
       </div>
-      <div id="expandBtn" title="Otevřít přehrávač">▶</div>
+      <div id="expandBtn" data-i18n-title="ttExpand">▶</div>
     </div>
   </div>
 
-  <!-- WINAMP PLAYER -->
+  <!-- WINAMP-STYLE PLAYER -->
   <div id="player">
     <div class="amp">
       <div class="amp-title">
-        <span class="t">◈ CALCAMP PLAYER</span>
-        <span class="x" id="closePlayer" title="Sbalit">▬</span>
+        <span class="t">◈ KBCALC PLAYER</span>
+        <span class="x" id="closePlayer" data-i18n-title="ttCollapse">▬</span>
       </div>
 
       <div class="lcd">
@@ -80,12 +80,12 @@
             <div id="stmode">◄ STEREO ►</div>
           </div>
         </div>
-        <canvas id="viz" width="300" height="38" title="Klikni pro změnu stylu vizualizéru"></canvas>
+        <canvas id="viz" width="300" height="38" data-i18n-title="ttVizCanvas"></canvas>
         <div class="viz-ctl">
-          <span id="vizStyleBtn" title="Změnit styl vizualizéru">◈ <b id="vizStyleLabel">SPEKTRUM</b></span>
-          <span id="vizFullBtn" title="Vizualizér na celou obrazovku">⛶ ZVĚTŠIT</span>
+          <span id="vizStyleBtn" data-i18n-title="ttVizStyle">◈ <b id="vizStyleLabel">SPEKTRUM</b></span>
+          <span id="vizFullBtn" data-i18n="vizEnlarge" data-i18n-title="ttVizFull">⛶ ZVĚTŠIT</span>
         </div>
-        <div class="marquee-wrap"><span id="trackTitle" class="paused">CALCAMP · nahraj MP3 přes tlačítko ⏏ a spusť přehrávání</span></div>
+        <div class="marquee-wrap"><span id="trackTitle" class="paused" data-i18n="marqueeHint">KBCALC · nahraj MP3 přes tlačítko ⏏ a spusť přehrávání</span></div>
       </div>
 
       <div class="seek">
@@ -93,11 +93,11 @@
       </div>
 
       <div class="transport">
-        <button class="tbtn" data-t="prev" title="Předchozí">⏮</button>
-        <button class="tbtn play" data-t="play" id="playBtn" title="Přehrát/Pauza">▶</button>
-        <button class="tbtn" data-t="stop" title="Stop">⏹</button>
-        <button class="tbtn" data-t="next" title="Další">⏭</button>
-        <button class="tbtn eject" data-t="eject" title="Přidat soubory">⏏</button>
+        <button class="tbtn" data-t="prev" data-i18n-title="ttPrev">⏮</button>
+        <button class="tbtn play" data-t="play" id="playBtn" data-i18n-title="ttPlay">▶</button>
+        <button class="tbtn" data-t="stop" data-i18n-title="ttStop">⏹</button>
+        <button class="tbtn" data-t="next" data-i18n-title="ttNext">⏭</button>
+        <button class="tbtn eject" data-t="eject" data-i18n-title="ttEject">⏏</button>
       </div>
 
       <div class="sliders">
@@ -109,15 +109,15 @@
 
       <div class="plwrap">
         <div class="plhead">
-          <span id="plSwitch" title="Přepnout playlist">▤ <b id="plName">Playlist 1</b> <i id="plCount">(0)</i> <span class="caret">▾</span></span>
+          <span id="plSwitch" data-i18n-title="ttPlSwitch">▤ <b id="plName">Playlist 1</b> <i id="plCount">(0)</i> <span class="caret">▾</span></span>
           <span class="plActions">
-            <span id="plNew" title="Nový prázdný playlist">＋</span>
-            <span id="plRename" title="Přejmenovat playlist">✎</span>
-            <span id="plDel" title="Smazat playlist">🗑</span>
-            <span id="addFiles" title="Přidat soubory">⏏</span>
+            <span id="plNew" data-i18n-title="ttPlNew">＋</span>
+            <span id="plRename" data-i18n-title="ttPlRename">✎</span>
+            <span id="plDel" data-i18n-title="ttPlDel">🗑</span>
+            <span id="addFiles" data-i18n-title="ttEject">⏏</span>
           </span>
         </div>
-        <ul id="playlist"><li class="empty">Playlist je prázdný. Přetáhni sem MP3 / složku, nebo klikni ⏏.</li></ul>
+        <ul id="playlist"><li class="empty" data-i18n="plEmpty">Playlist je prázdný. Přetáhni sem MP3 / složku, nebo klikni ⏏.</li></ul>
       </div>
     </div>
   </div>
@@ -127,31 +127,31 @@
 <audio id="audio" crossorigin="anonymous"></audio>
 <div id="plMenu"></div>
 
-<!-- O aplikaci -->
+<!-- O aplikaci / About -->
 <div id="about">
   <div class="about-card">
     <div class="about-head">
-      <span>◈ O APLIKACI CALCAMP</span>
-      <span class="x" id="aboutClose" title="Zavřít">✕</span>
+      <span data-i18n="aboutTitle">◈ O APLIKACI KBCALC</span>
+      <span class="x" id="aboutClose" data-i18n-title="ttClose">✕</span>
     </div>
-    <p class="about-desc">Plovoucí kalkulačka s vestavěným MP3 přehrávačem ve stylu
+    <p class="about-desc" data-i18n="aboutDesc">Plovoucí kalkulačka s vestavěným MP3 přehrávačem ve stylu
     Winampu. Ukázková open source aplikace (MIT) od tvůrců killBottleneck —
     stáhněte, upravte, používejte i komerčně.</p>
     <div class="about-links">
       <button class="about-link" data-link="github"><span class="ic">◆</span>
-        <span><b>GitHub</b><i>zdrojový kód, hlášení chyb, nové verze</i></span></button>
+        <span><b>GitHub</b><i data-i18n="linkGithubSub">zdrojový kód, hlášení chyb, nové verze</i></span></button>
       <button class="about-link" data-link="web"><span class="ic">🎯</span>
-        <span><b>killbottleneck.com</b><i>nástroje proti úzkým hrdlům od stejných autorů</i></span></button>
+        <span><b>killbottleneck.com</b><i data-i18n="linkWebSub">nástroje proti úzkým hrdlům od stejných autorů</i></span></button>
       <button class="about-link" data-link="youtube"><span class="ic yt">▶</span>
-        <span><b>YouTube kanál</b><i>návody, novinky a AI experimenty od autorů</i></span></button>
+        <span><b data-i18n="linkYt">YouTube kanál</b><i data-i18n="linkYtSub">návody, novinky a AI experimenty od autorů</i></span></button>
       <button class="about-link" data-link="discord"><span class="ic">💬</span>
-        <span><b>Komunita na Discordu</b><i>otázky, nápady, pomoc</i></span></button>
+        <span><b data-i18n="linkDc">Komunita na Discordu</b><i data-i18n="linkDcSub">otázky, nápady, pomoc</i></span></button>
       <button class="about-link update" id="aboutUpdate" hidden><span class="ic">⬆</span>
         <span><b id="aboutUpdateTitle"></b><i id="aboutUpdateSub"></i></span></button>
     </div>
     <div class="about-foot">
-      <span id="aboutVersion"></span>
-      <span>Autoři: Richard · Claude Fable 5</span>
+      <span><span id="aboutVersion"></span><span class="langSwitch"><button class="langBtn" data-lang="cs">CS</button><button class="langBtn" data-lang="en">EN</button></span></span>
+      <span id="aboutAuthors" data-i18n="authors">Autoři: Richard Pobrislo · Claude Fable 5</span>
     </div>
   </div>
 </div>
@@ -161,7 +161,7 @@
   <canvas id="vizBig"></canvas>
   <div id="vizFullBar">
     <span id="vizFullStyle">SPEKTRUM</span>
-    <span class="hint">klik = změnit styl · Esc = návrat</span>
+    <span class="hint" data-i18n="vizHint">klik = změnit styl · Esc = návrat</span>
   </div>
 </div>
 
