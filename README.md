@@ -120,16 +120,23 @@ The app follows Electron hardening practice:
   (extension allow-list, symlinks resolved, regular files only) and
   `fs:expand` never follows symlinks and caps recursion depth.
 - A restrictive CSP is set (`connect-src 'self'`, no `unsafe-inline`; media
-  only via `blob:`) — the renderer has no network access at all.
+  only via `blob:` and the app's own `kbaudio:` scheme). The renderer has **no
+  direct network access** — it cannot open sockets or `fetch()` remote hosts.
 - Navigation and `window.open` are denied in the main process. External links
   from the About dialog open in the system browser and only from a fixed
-  allowlist keyed by name (the renderer never passes URLs).
+  allowlist keyed by name (the renderer passes a key, not a URL).
 - The update check runs in the main process, at most once a day, and fails
   silently offline.
-- Podcasts don't give the renderer network access either: the RSS feed is
-  fetched by the main process (http/https only, 5 MB cap) and episodes stream
-  through a custom `kbaudio://` scheme proxied by the main process, so the
-  CSP stays closed and the audio graph is not CORS-tainted.
+- **Podcasts** are the one place the renderer can trigger a network request,
+  and only through two narrow main-process channels: fetching the RSS feed you
+  paste, and streaming the episode you play (via a custom `kbaudio://` scheme).
+  Both go through an **SSRF guard** — the target host is resolved and private /
+  loopback / link-local ranges are refused, redirects are followed manually and
+  every hop is re-checked, with a size cap and timeout. So a hostile feed cannot
+  make the app probe `localhost` or your LAN, and the audio graph stays
+  un-tainted so the visualizer and equalizer work on podcasts too.
+- No dangerous permissions: the app denies all permission requests
+  (microphone, camera, notifications, …) — it needs none.
 
 Found a vulnerability? See [SECURITY.md](SECURITY.md).
 

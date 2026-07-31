@@ -8,7 +8,12 @@ and the codebase is deliberately tiny.
 ```bash
 npm install
 npm start          # dev launch (on Linux this passes --no-sandbox, see kbcalc.sh)
+npm test           # dependency-free checks: syntax, calculator/history, i18n, SSRF filter
 ```
+
+`npm test` runs in plain Node (no Electron) and is what CI runs on every push
+and PR — keep it green. It won't catch UI/Electron regressions, so also launch
+the app and click through anything you touched.
 
 ## Code layout
 
@@ -27,9 +32,12 @@ npm start          # dev launch (on Linux this passes --no-sandbox, see kbcalc.s
   left-to-right evaluation (`2 + 3 × 4 = 20`), context-aware percent, `=` does
   not repeat the last operation. Please don't "fix" these.
 - **Security invariants** (see the Security model in the README): no new IPC
-  surface without a guard, renderer never passes URLs or free-form paths that
-  bypass the audio allow-list, CSP stays without `unsafe-inline` — meaning all
-  scripts/styles live in `app.js`/`app.css`, never inline in the HTML.
+  surface without a guard. The renderer may pass a file path (validated against
+  the audio allow-list + realpath) or a podcast URL (validated by the SSRF
+  guard — private/loopback ranges refused, redirects re-checked); it must never
+  get a channel that fetches an arbitrary host or reads an arbitrary path. CSP
+  stays without `unsafe-inline`, so all scripts/styles live in
+  `app.js`/`app.css`, never inline in the HTML.
 - **Both languages**: any user-visible string goes through the `I18N`
   dictionary in `app.js` (cs + en), static markup via `data-i18n` /
   `data-i18n-title` attributes.

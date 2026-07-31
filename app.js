@@ -99,7 +99,9 @@
     renderPlaylist();
     updateModes();
     if(!histPanel.hidden) histRender();
-    if(idx<0) setTitle(tr('noTrack'));
+    // applyI18n přepsal trackTitle na marqueeHint i miniTitle na noTrack; když
+    // něco hraje, vrať název skladby (jinak nech prázdný stav = hint + noTrack)
+    if(idx>=0 && list[idx]) setTitle((idx+1)+'. '+list[idx].title);
     if(window.win && window.win.notifyLang) window.win.notifyLang(l);   // tray menu
   }
 
@@ -109,9 +111,10 @@
   let cur = '0', prev = null, op = null, freshNum = true;
 
   const fmt = n => {
-    if(!isFinite(n)) return 'Error';
-    let s = Math.abs(n) < 1e-12 && n!==0 ? n.toExponential(6) : String(Math.round(n*1e10)/1e10);
-    return s;
+    if(!isFinite(n) || !isFinite(n*1e10)) return 'Error';        // ±Infinity i přetečení při zaokrouhlení
+    const r = Math.round(n*1e10)/1e10;
+    if(n!==0 && r===0) return n.toExponential(6);                // moc malé číslo se nesmí zobrazit jako „0"
+    return String(r);
   };
   const opSym = {'+':'+','-':'−','*':'×','/':'÷'};
 
@@ -129,7 +132,7 @@
   function render(){
     const shown = cur.length>12 ? (+cur).toPrecision(8) : cur;
     outEl.textContent = group(shown);
-    exprEl.innerHTML = prev!==null ? (group(prev)+' '+opSym[op]) : '&nbsp;';
+    exprEl.textContent = prev!==null ? (group(prev)+' '+opSym[op]) : ' ';  // textContent, ne innerHTML
     const nv=document.getElementById('notesInsVal'); if(nv) nv.textContent=group(shown); }
 
   function press(k){
@@ -158,9 +161,10 @@
   }
 
   /* ---------- HISTORIE VÝPOČTŮ ---------- */
+  const HRES_RE=/^-?[\d.]+$|^Error$/;                  // výsledek historie smí být jen číslo/„Error"
   let hist=[];
   try{ const h=JSON.parse(localStorage.getItem('kbcalc.history')||'null');
-    if(Array.isArray(h)) hist=h.filter(x=>x&&typeof x.e==='string'&&typeof x.r==='string').slice(0,50); }catch(e){}
+    if(Array.isArray(h)) hist=h.filter(x=>x&&typeof x.e==='string'&&typeof x.r==='string'&&HRES_RE.test(x.r)).slice(0,50); }catch(e){}
   const histPanel=document.getElementById('histPanel');
   const histList=document.getElementById('histList');
   const histBtn=document.getElementById('histBtn');
@@ -263,7 +267,8 @@
     try{
       if(u.length>10 && u[0]===0x49&&u[1]===0x44&&u[2]===0x33){       // "ID3"
         const ver=u[3], size=ss(u,6);
-        let o=10; if(u[5]&0x40) o+=ss(u,10)+4;                        // extended header
+        // extended header: ve v2.4 synchsafe velikost zahrnuje sebe, ve v2.3 ne
+        let o=10; if(u[5]&0x40) o += ver===4 ? ss(u,10) : ss(u,10)+4;
         const end=Math.min(10+size, u.length);
         const out={};
         while(o+10<=end && !(out.title&&out.artist)){
@@ -303,9 +308,16 @@
       return tag;
     }catch(e){ return null; }
   }
+  // dořešené tagy překreslují playlist dávkově (jinak O(n²) při přidání stovek souborů)
+  let tagDirty=false, tagFlush=0;
   function tagItemAsync(item,f){
-    tagFromFile(f).then(tag=>{ if(tag){ item.title=tagLabel(tag,item.title); item.tagged=true;
-      renderPlaylist(); savePlaylist(); if(list[idx]===item) setTitle((idx+1)+'. '+item.title); } });
+    tagFromFile(f).then(tag=>{
+      if(!tag) return;
+      item.title=tagLabel(tag,item.title); item.tagged=true;
+      if(list[idx]===item) setTitle((idx+1)+'. '+item.title);
+      tagDirty=true; clearTimeout(tagFlush);
+      tagFlush=setTimeout(()=>{ if(tagDirty){ tagDirty=false; renderPlaylist(); savePlaylist(); } }, 120);
+    });
   }
 
   /* ---- víc playlistů ---- */
@@ -407,9 +419,9 @@
   }
   function moveTrack(from,to){
     if(from===to||from<0||to<0||from>=list.length||to>=list.length) return;
-    const cur = idx>=0 ? list[idx] : null;
+    const curTrack = idx>=0 ? list[idx] : null;    // pozor: `cur` je stav kalkulačky, nestínit
     const [it]=list.splice(from,1); list.splice(to,0,it);
-    if(cur) idx=list.indexOf(cur);
+    if(curTrack) idx=list.indexOf(curTrack);
     renderPlaylist(); savePlaylist();
   }
 
@@ -455,7 +467,7 @@
   }
 
   /* ---- shuffle / repeat (persistované režimy) ---- */
-  let shuffle=false, repeat='all';
+  let shuffle=false, repeat='all', shufPlayed=0;   // shufPlayed = kolik skladeb odehráno v shuffle+off
   try{ shuffle = localStorage.getItem('kbcalc.shuffle')==='1';
        const r = localStorage.getItem('kbcalc.repeat'); if(['off','all','one'].includes(r)) repeat=r; }catch(e){}
   const shufBtn=document.getElementById('shufBtn'), repBtn=document.getElementById('repBtn');
@@ -465,7 +477,7 @@
     repBtn.textContent = repeat==='one' ? '🔂' : '🔁';
     repBtn.title = tr(repeat==='one'?'repOne':repeat==='all'?'repAll':'repOff');
   }
-  shufBtn.onclick=()=>{ shuffle=!shuffle;
+  shufBtn.onclick=()=>{ shuffle=!shuffle; shufPlayed=0;
     try{ localStorage.setItem('kbcalc.shuffle', shuffle?'1':'0'); }catch(e){} updateModes(); };
   repBtn.onclick=()=>{ repeat = repeat==='off'?'all':repeat==='all'?'one':'off';
     try{ localStorage.setItem('kbcalc.repeat', repeat); }catch(e){} updateModes(); };
@@ -475,9 +487,10 @@
   const EQ_FREQS=[60,250,1000,4000,12000];
   const EQ_PRESETS={ flat:[0,0,0,0,0], rock:[5,3,-1,2,4], pop:[-1,2,4,2,-1],
                      jazz:[3,1,0,2,3], bass:[7,4,0,0,0], vocal:[-2,0,4,3,0] };
+  const eqClamp=v=>{ const n=+v; return Number.isFinite(n) ? Math.max(-12, Math.min(12, n)) : 0; };
   let eqGains=[0,0,0,0,0], eqPresetName='flat';
   try{ const s=JSON.parse(localStorage.getItem('kbcalc.eq')||'null');
-    if(s && Array.isArray(s.g) && s.g.length===5){ eqGains=s.g.map(Number); eqPresetName=s.p||'custom'; } }catch(e){}
+    if(s && Array.isArray(s.g) && s.g.length===5){ eqGains=s.g.map(eqClamp); eqPresetName=s.p||'custom'; } }catch(e){}
   const eqPanel=document.getElementById('eqPanel'), eqSel=document.getElementById('eqPreset');
   const eqSliders=[...document.querySelectorAll('.eqSlider')];
   const eqBtn=document.getElementById('eqBtn');
@@ -515,6 +528,7 @@
       audio._graph={ctx,analyser,panner,gain,eqs,
         freq:new Uint8Array(analyser.frequencyBinCount),
         time:new Uint8Array(analyser.fftSize)};
+      audio.volume=1;              // od teď hlasitost řídí gain node; jinak by se násobilo (dvojí ztlumení)
       applyVol(); applyBal();
     }catch(err){ console.warn('audio graph:',err); audio._graph=null; audio._nograph=true; }
   }
@@ -541,11 +555,23 @@
   function onEnded(){                        // konec skladby řídí repeat/shuffle režim
     if(!list.length) return;
     if(repeat==='one'){ load(idx,true); return; }
-    if(shuffle && list.length>1){ load(pickNext(1),true); return; }
+    if(shuffle && list.length>1){
+      if(repeat==='off' && ++shufPlayed>=list.length){ shufPlayed=0; stop(); return; }  // shuffle bez opakování skončí
+      load(pickNext(1),true); return;
+    }
     const n=idx+1;
     if(n>=list.length){ if(repeat==='all') load(0,true); else stop(); return; }
     load(n,true);
   }
+  // tichá chyba streamu/souboru (mrtvá podcast epizoda, 502 z proxy) nesmí zaseknout přehrávač
+  audio.addEventListener('error', ()=>{
+    if(!curUrlTrack || !list.length) return;
+    if(list.length>1 && loadFailStreak < list.length-1){
+      loadFailStreak++;
+      setTitle(tr('skipMsg').replace('{title}', curUrlTrack.title||''));
+      load(pickNext(1), true);
+    } else { loadFailStreak=0; setTitle(tr('noPlayable')); }
+  });
 
   audio.addEventListener('play', ()=>{ playing=true; playBtn.textContent='⏸'; miniPlay.textContent='⏸';
     trackTitle.classList.remove('paused'); draw(); });
@@ -687,8 +713,11 @@
         items: pl.items.filter(t=>t.path||t.remote).map(t=>({ title:t.title,
           ...(t.path?{path:t.path}:{}), ...(t.remote?{remote:t.remote}:{}) }))
       }));
+      // čas ukládej jen pro PRÁVĚ hrající skladbu aktivního playlistu — jinak by se
+      // po přepnutí playlistu za hraní obnovila nová skladba na čase té staré
+      const timeValid = curUrlTrack && list[idx]===curUrlTrack;
       localStorage.setItem('kbcalc.playlists',
-        JSON.stringify({ playlists:pls, active:activePl, time:audio.currentTime||0 }));
+        JSON.stringify({ playlists:pls, active:activePl, time:timeValid ? (audio.currentTime||0) : 0 }));
     }catch(e){}
   }
   async function restorePlaylist(){
@@ -906,9 +935,11 @@
   // malý vizualizér — nepřetržitá smyčka (aktivní / klidový režim)
   function smallLoop(){
     const W=canvas.width, H=canvas.height;
-    if(audio.paused){
-      vctx.clearRect(0,0,W,H); vctx.fillStyle='rgba(43,255,119,.12)';
-      const n=32, bw=(W-62)/n; for(let i=0;i<n;i++) vctx.fillRect(i*(bw+2),H-3,bw,3);
+    // když je přehrávač sbalený, canvas není vidět → nekresli plnou rychlostí (šetří CPU/baterii)
+    if(audio.paused || !app.classList.contains('open')){
+      if(!app.classList.contains('open')){ /* skryté: nekresli nic */ }
+      else { vctx.clearRect(0,0,W,H); vctx.fillStyle='rgba(43,255,119,.12)';
+        const n=32, bw=(W-62)/n; for(let i=0;i<n;i++) vctx.fillRect(i*(bw+2),H-3,bw,3); }
       setTimeout(()=>requestAnimationFrame(smallLoop),110);
     } else {
       drawViz(vctx,W,H,getData());

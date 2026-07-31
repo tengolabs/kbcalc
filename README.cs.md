@@ -108,15 +108,22 @@ všechny tři OS na vlastních runnerech; tag `v*` vytvoří Release s balíčky
   rozřešené symlinky, jen regulérní soubory), `fs:expand` nesleduje symlinky
   a má strop hloubky rekurze.
 - Restriktivní CSP (`connect-src 'self'`, bez `unsafe-inline`; média jen přes
-  `blob:`) — renderer nemá žádný přístup k síti.
+  `blob:` a vlastní schéma `kbaudio:`). Renderer nemá **žádný přímý přístup
+  k síti** — nemůže otevřít socket ani `fetch()` na cizí host.
 - Navigace a `window.open` jsou v main procesu zakázané. Externí odkazy z
   dialogu O aplikaci se otevírají v systémovém prohlížeči a jen z pevného
-  allowlistu podle klíče (renderer nikdy nepředává URL).
+  allowlistu podle klíče (renderer předává klíč, ne URL).
 - Kontrola verze běží v main procesu, max 1× denně, offline mlčky selže.
-- Ani podcasty nedávají rendereru síť: RSS stahuje main proces (jen
-  http/https, limit 5 MB) a epizody streamují přes vlastní schéma
-  `kbaudio://` proxované main procesem — CSP zůstává zavřená a audio
-  graf není CORS-tainted.
+- **Podcasty** jsou jediné místo, kde renderer spustí síťový požadavek, a to
+  jen přes dva úzké kanály v main procesu: stažení RSS kanálu, který vložíš,
+  a stream epizody, kterou přehráváš (přes vlastní schéma `kbaudio://`).
+  Oba procházejí **ochranou proti SSRF** — cílový host se resolvuje a privátní
+  / loopback / link-local rozsahy se odmítnou, redirecty se řeší ručně a každý
+  hop se prověří, plus limit velikosti a timeout. Podvržený feed tak nedonutí
+  appku ťukat na `localhost` ani do LAN, a audio graf zůstává bez CORS-taintu,
+  takže vizualizér i ekvalizér fungují i u podcastů.
+- Žádná citlivá oprávnění: appka odmítá všechny žádosti o oprávnění
+  (mikrofon, kamera, notifikace…) — žádné nepotřebuje.
 
 Našli jste zranitelnost? Viz [SECURITY.md](SECURITY.md).
 

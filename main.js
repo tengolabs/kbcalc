@@ -1,7 +1,66 @@
 const { app, BrowserWindow, ipcMain, shell, globalShortcut, Tray, Menu, nativeImage, screen,
-        protocol, net } = require('electron');
+        protocol, net, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const dns = require('dns');
+
+// ---------- ochrana proti SSRF (podcasty) ----------
+// Podcast feed i epizoda jsou CIZÍ URL. Bez filtru by appka udělala GET na
+// http://127.0.0.1:… / LAN / cloud-metadata z počítače uživatele. Proto:
+// resolvujeme host a odmítneme privátní/loopback/link-local rozsahy (i proti
+// DNS-rebindingu, kdy doména míří na 127.0.0.1), redirecty řešíme ručně a
+// stejný test platí pro KAŽDÝ hop.
+function ipIsPrivate(ip) {
+  if (!ip) return true;
+  if (ip.includes(':')) {                                  // IPv6
+    const a = ip.toLowerCase();
+    if (a === '::1' || a === '::') return true;             // loopback / unspecified
+    if (a.startsWith('fe80') || a.startsWith('fc') || a.startsWith('fd')) return true; // link-local / ULA
+    const m = a.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);     // IPv4-mapped
+    if (m) return ipIsPrivate(m[1]);
+    return false;
+  }
+  const o = ip.split('.').map(Number);                     // IPv4
+  if (o.length !== 4 || o.some(n => !Number.isInteger(n) || n < 0 || n > 255)) return true;
+  if (o[0] === 0 || o[0] === 127) return true;             // 0.0.0.0/8, loopback
+  if (o[0] === 10) return true;                            // 10/8
+  if (o[0] === 172 && o[1] >= 16 && o[1] <= 31) return true; // 172.16/12
+  if (o[0] === 192 && o[1] === 168) return true;           // 192.168/16
+  if (o[0] === 169 && o[1] === 254) return true;           // 169.254/16 link-local (cloud metadata!)
+  if (o[0] === 100 && o[1] >= 64 && o[1] <= 127) return true; // 100.64/10 CGNAT
+  if (o[0] >= 224) return true;                            // multicast + reserved
+  return false;
+}
+async function assertPublicHost(hostname) {
+  // literální IP: ověř přímo; jinak resolvuj a ověř VŠECHNY adresy
+  if (net.isIP ? net.isIP(hostname) : /^[\d.:]+$/.test(hostname)) {
+    if (ipIsPrivate(hostname)) throw new Error('blocked-ip');
+    return;
+  }
+  const addrs = await dns.promises.lookup(hostname, { all: true });
+  if (!addrs.length || addrs.some(a => ipIsPrivate(a.address))) throw new Error('blocked-host');
+}
+// fetch s ručními redirecty (max 5), timeoutem a SSRF kontrolou každého hopu
+async function safeFetch(url, { headers = {}, timeoutMs = 15000, maxRedirects = 5 } = {}) {
+  let cur = String(url);
+  for (let i = 0; i <= maxRedirects; i++) {
+    const u = new URL(cur);
+    if (!/^https?:$/.test(u.protocol)) throw new Error('bad-scheme');
+    await assertPublicHost(u.hostname);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    let r;
+    try {
+      r = await net.fetch(u.href, { headers, redirect: 'manual', signal: ctrl.signal, credentials: 'omit' });
+    } finally { clearTimeout(timer); }
+    if (r.status >= 300 && r.status < 400 && r.headers.get('location')) {
+      cur = new URL(r.headers.get('location'), u).href;    // další hop → znovu prověřit
+      continue;
+    }
+    return r;
+  }
+  throw new Error('too-many-redirects');
+}
 
 // ---------- podcasty ----------
 // Streamování epizod jde přes vlastní schéma kbaudio:// obsluhované v main
@@ -147,15 +206,17 @@ function buildTrayMenu() {
 ipcMain.on('app:lang', (e, l) => { trayLang = l === 'en' ? 'en' : 'cs'; buildTrayMenu(); });
 
 app.whenReady().then(() => {
+  // appka nepotřebuje ŽÁDNÉ oprávnění (mikrofon/kamera/notifikace/…) → deny-all
+  session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(false));
+  session.defaultSession.setPermissionCheckHandler(() => false);
+
   protocol.handle('kbaudio', async (req) => {
     try {
       const target = new URL(req.url).searchParams.get('u') || '';
-      const tu = new URL(target);
-      if (!/^https?:$/.test(tu.protocol)) return new Response('', { status: 403 });
       const headers = {};
       const range = req.headers.get('Range');
       if (range) headers.Range = range;
-      const r = await net.fetch(tu.href, { headers, redirect: 'follow' });
+      const r = await safeFetch(target, { headers });       // SSRF-safe: blokuje privátní cíle + redirecty
       const h = new Headers(r.headers);
       h.set('Access-Control-Allow-Origin', '*');
       return new Response(r.body, { status: r.status, headers: h });
@@ -216,7 +277,7 @@ ipcMain.handle('fs:read', async (e, p) => {
     const real = await fs.promises.realpath(p);
     if (!isAudio(real)) return null;
     const st = await fs.promises.stat(real);
-    if (!st.isFile()) return null;
+    if (!st.isFile() || st.size > 512 * 1024 * 1024) return null;   // cap 512 MB proti OOM
     return await fs.promises.readFile(real);
   } catch (err) { return null; }
 });
@@ -234,6 +295,7 @@ ipcMain.handle('fs:expand', async (e, paths) => {
           let files = [];
           const ents = await fs.promises.readdir(dir, { withFileTypes: true });
           for (const ent of ents) {
+            if (files.length > 10000) break;               // strop počtu položek (DoS na sebe)
             if (ent.isSymbolicLink()) continue;            // nesleduj symlinky (únik mimo strom / smyčky)
             const full = path.join(dir, ent.name);
             if (ent.isDirectory()) files = files.concat(await walk(full, depth + 1));
@@ -256,9 +318,7 @@ ipcMain.handle('fs:expand', async (e, paths) => {
 // nic jiného než text feedu.
 ipcMain.handle('podcast:fetch', async (e, url) => {
   try {
-    const u = new URL(String(url));
-    if (!/^https?:$/.test(u.protocol)) return { error: 'bad-url' };
-    const r = await net.fetch(u.href, { redirect: 'follow' });
+    const r = await safeFetch(url, { timeoutMs: 15000 });  // SSRF-safe
     if (!r.ok) return { error: 'http-' + r.status };
     const reader = r.body.getReader();
     const chunks = []; let recd = 0;
@@ -269,7 +329,15 @@ ipcMain.handle('podcast:fetch', async (e, url) => {
       if (recd > 5e6) { reader.cancel(); return { error: 'too-big' }; }
       chunks.push(value);
     }
-    return { xml: Buffer.concat(chunks).toString('utf8') };
+    const buf = Buffer.concat(chunks);
+    // charset z Content-Type nebo XML prologu (české feedy bývají windows-1250)
+    let enc = (r.headers.get('content-type')||'').match(/charset=([\w-]+)/i)?.[1];
+    if (!enc) enc = buf.slice(0, 200).toString('latin1').match(/encoding=["']([\w-]+)["']/i)?.[1];
+    enc = (enc||'utf-8').toLowerCase();
+    let xml;
+    try { xml = new TextDecoder(enc).decode(buf); }
+    catch { xml = buf.toString('utf8'); }
+    return { xml };
   } catch (err) { return { error: 'network' }; }
 });
 

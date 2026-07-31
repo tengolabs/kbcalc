@@ -10,8 +10,18 @@ reproduce and, if possible, an assessment of impact.
 
 ## Scope notes
 
-CalcAmp is a local desktop app: it plays local audio files and never uploads
-anything. The only network request the app makes is an anonymous once-a-day
-query to the GitHub Releases API to detect new versions (no telemetry).
-Reports about the Electron hardening (IPC surface, CSP, file-system guards)
-are especially welcome.
+kbCalc is a local desktop app that plays local audio files and podcasts. It
+never uploads anything — there is no telemetry. It makes network requests only
+in the main process, on your behalf:
+
+- an anonymous once-a-day query to the GitHub Releases API (new-version check);
+- when you add a podcast: downloading its RSS feed and streaming the episodes
+  you play.
+
+Podcast requests go through an SSRF guard that resolves the target host and
+refuses private / loopback / link-local ranges, follows redirects manually and
+re-checks every hop. The renderer never fetches over the network itself; it
+only asks the main process for these two specific operations.
+
+Reports about the Electron hardening (IPC surface, CSP, file-system guards, the
+podcast fetch/stream path) are especially welcome.

@@ -8,6 +8,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node --check main.js && node --check preload.js && node --check app.js && node tests/smoke.js && node tests/i18n.test.js && node tests/ssrf.test.js",
     "dist": "electron-builder",
     "dist:linux": "electron-builder --linux",
     "dist:win": "electron-builder --win",
