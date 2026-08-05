@@ -20,6 +20,7 @@
       ttHist:'Historie výpočtů', ttHistClear:'Smazat historii', histTitle:'HISTORIE',
       histEmpty:'— zatím žádné výpočty —',
       ttPodcast:'Přidat podcast (RSS)', podcastPh:'URL RSS podcastu… (Enter)',
+      ttRadio:'Přidat internetové rádio', radioPh:'URL streamu rádia… (Enter)', radioErr:'⚠ neplatná URL rádia',
       podLoading:'Načítám podcast…', podErr:'⚠ podcast se nepodařilo načíst',
       podEmpty:'⚠ v kanálu nejsou žádné audio epizody',
       repOff:'Opakování: vypnuto', repAll:'Opakování: celý playlist', repOne:'Opakování: jedna skladba',
@@ -57,6 +58,7 @@
       ttHist:'Calculation history', ttHistClear:'Clear history', histTitle:'HISTORY',
       histEmpty:'— no calculations yet —',
       ttPodcast:'Add a podcast (RSS)', podcastPh:'Podcast RSS URL… (Enter)',
+      ttRadio:'Add internet radio', radioPh:'Radio stream URL… (Enter)', radioErr:'⚠ invalid radio URL',
       podLoading:'Loading podcast…', podErr:'⚠ could not load the podcast',
       podEmpty:'⚠ no audio episodes in the feed',
       repOff:'Repeat: off', repAll:'Repeat: whole playlist', repOne:'Repeat: one track',
@@ -234,6 +236,8 @@
   // víc playlistů: playlists[i] = { name, idx, items:[{title, path, url?}] }
   // `list` je vždy odkaz na items aktivního playlistu, `idx` = skladba v něm.
   let playlists = [], activePl = 0, list = [], idx = -1, playing = false;
+  let streaming = false;   // mobil: aktuální skladba hraje přes nativní stream (rádio/podcast)
+  let lastStreamDur = 0;   // poslední známá délka streamu (ms) pro seek
   let curUrlTrack = null;   // kvůli uvolňování lazy blobů z paměti
   let loadFailStreak = 0;   // pojistka proti nekonečné smyčce při přeskakování mrtvých souborů
   let dragSrc = null;       // index přetahované skladby (reorder uvnitř playlistu)
@@ -433,14 +437,25 @@
 
   function setTitle(txt){ miniTitle.textContent=txt; trackTitle.textContent=txt; }
 
+  const nativeStream = () => !!(window.win && window.win.streamPlay);   // mobil: nativní přehrávač streamů
+
   async function load(i, autoplay){
     if(i<0||i>=list.length) return;
     idx=i; const t=list[i];
-    // podcastové epizody: desktop přes kbaudio:// proxy (CORS ok → vizualizér);
-    // mobil (bridge streamUrl) přímé http(s) URL do WebView
+    // MOBIL: rádio/podcast (remote) → nativní přehrávač (WebView cross-origin neumí)
+    if(t.remote && nativeStream()){
+      streaming=true; loadFailStreak=0;
+      audio.pause(); audio.removeAttribute('src');   // WebView audio ticho
+      curUrlTrack=t;
+      setTitle((i+1)+'. '+t.title);
+      renderTabs(); renderPlaylist(); savePlaylist();
+      if(autoplay) window.win.streamPlay(t.remote, (i+1)+'. '+t.title);
+      return;
+    }
+    if(streaming){ streaming=false; if(window.win.streamStop) window.win.streamStop(); }
+    // podcastové epizody na DESKTOPU: kbaudio:// proxy (CORS ok → vizualizér)
     if(!t.url && t.remote){
-      t.url = (window.win && window.win.streamUrl) ? window.win.streamUrl(t.remote)
-                                                   : 'kbaudio://play/?u='+encodeURIComponent(t.remote);
+      t.url = 'kbaudio://play/?u='+encodeURIComponent(t.remote);
     }
     // mobil: trvalá cesta (content:// z pickeru) → přehratelná URL bez kopírování;
     // přežije restart, dokud platí oprávnění k souboru
@@ -552,13 +567,19 @@
   async function play(){
     if(idx<0 && list.length){ await load(0,false); }
     if(idx<0) return;
+    if(streaming){                                    // nativní stream: pokud stojí, načti+spusť
+      if(list[idx]) window.win.streamPlay(list[idx].remote, (idx+1)+'. '+list[idx].title);
+      return;
+    }
     ensureAudioGraph();
     if(audio._graph && audio._graph.ctx.state==='suspended') audio._graph.ctx.resume();
     audio.play().then(()=>{}).catch(e=>console.warn(e));
   }
-  function pause(){ audio.pause(); }
-  function toggle(){ audio.paused ? play() : pause(); }
-  function stop(){ audio.pause(); audio.currentTime=0;
+  function pause(){ if(streaming){ window.win.streamToggle(); return; } audio.pause(); }
+  function toggle(){ if(streaming){ window.win.streamToggle(); return; } audio.paused ? play() : pause(); }
+  function stop(){
+    if(streaming){ streaming=false; if(window.win.streamStop) window.win.streamStop(); return; }
+    audio.pause(); audio.currentTime=0;
     if(window.win && window.win.stopBackgroundAudio) window.win.stopBackgroundAudio(); }   // zavře notifikaci
   function pickNext(dir){
     if(shuffle && list.length>1){ let n; do{ n=Math.floor(Math.random()*list.length); }while(n===idx); return n; }
@@ -604,7 +625,9 @@
   });
   audio.addEventListener('loadedmetadata', ()=>{ timeEl.textContent=secfmt(0); });
 
-  seek.addEventListener('input', ()=>{ if(audio.duration) audio.currentTime=seek.value/1000*audio.duration; });
+  seek.addEventListener('input', ()=>{
+    if(streaming){ if(window.win.streamSeek) window.win.streamSeek(seek.value/1000 * (lastStreamDur||0)); return; }
+    if(audio.duration) audio.currentTime=seek.value/1000*audio.duration; });
   vol.addEventListener('input', applyVol);
   bal.addEventListener('input', applyBal);
 
@@ -730,6 +753,31 @@
   }
   document.getElementById('plPodcast').onclick=e=>{ e.stopPropagation(); addPodcastFlow(); };
 
+  // ---- internetové rádio: URL streamu → stanice do playlistu, hraje přes stream ----
+  function addRadioFlow(){
+    const nm=document.getElementById('plName');
+    if(!nm || document.getElementById('radioUrlInput') || document.getElementById('plRenameInput')) return;
+    const inp=document.createElement('input'); inp.id='radioUrlInput'; inp.className='pl-rename';
+    inp.placeholder=tr('radioPh'); nm.style.display='none'; nm.after(inp); inp.focus();
+    let done=false;
+    const close=()=>{ if(done) return; done=true; inp.remove(); nm.style.display=''; };
+    inp.onkeydown=e=>{
+      e.stopPropagation();
+      if(e.key==='Escape'){ close(); return; }
+      if(e.key!=='Enter') return;
+      const url=inp.value.trim(); close();
+      if(!/^https?:\/\//i.test(url)){ setTitle(tr('radioErr')); return; }
+      let name='Rádio'; try{ name=new URL(url).hostname.replace(/^www\./,'')||'Rádio'; }catch(e){}
+      const startEmpty=list.length===0;
+      list.push({ title:name, remote:url, radio:true });
+      renderTabs(); renderPlaylist(); savePlaylist(); setOpen(true);
+      load(list.length-1, true);
+    };
+    inp.onblur=()=>close();
+    inp.onclick=e=>e.stopPropagation();
+  }
+  document.getElementById('plRadio').onclick=e=>{ e.stopPropagation(); addRadioFlow(); };
+
   // ---- ovládání přepínače playlistů ----
   document.getElementById('plSwitch').onclick=e=>{ e.stopPropagation();
     plMenu.classList.contains('on') ? closePlMenu() : openPlMenu(); };
@@ -826,7 +874,25 @@
   // hardwarová media tlačítka + tray ovládání
   if(wc && wc.onMedia){
     wc.onMedia(a=>{ if(a==='playpause') toggle(); else if(a==='next') next();
-                    else if(a==='prev') prev_(); else if(a==='stop') stop(); });
+                    else if(a==='prev') prev_(); else if(a==='stop') stop();
+                    else if(a==='streamEnded'){ streaming=false; onEnded(); }
+                    else if(a==='streamError'){ streaming=false; onEnded(); }
+                    else if(a==='streamStopped') streaming=false; });
+  }
+  // stav nativního streamu (rádio/podcast na mobilu) → UI
+  if(wc && wc.onStreamState){
+    wc.onStreamState(s=>{
+      if(!streaming) return;
+      if(s.state==='playing'){ playing=true; playBtn.textContent='⏸'; miniPlay.textContent='⏸'; trackTitle.classList.remove('paused'); }
+      else if(s.state==='paused'){ playing=false; playBtn.textContent='▶'; miniPlay.textContent='▶'; trackTitle.classList.add('paused'); }
+      else if(s.state==='tick'){
+        lastStreamDur=s.dur||0;
+        const d=(s.dur||0)/1000, c=(s.pos||0)/1000;
+        timeEl.textContent = d>0 ? secfmt(c) : 'LIVE';                 // rádio = živě, bez délky
+        if(d>0){ seek.value=Math.round(c/d*1000); miniBar.style.width=(c/d*100)+'%'; }
+        else { seek.value=0; miniBar.style.width='100%'; }
+      }
+    });
   }
   if(wc && wc.notifyLang) wc.notifyLang(lang);   // tray menu ve správném jazyce hned od startu
 
