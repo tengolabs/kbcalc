@@ -26,9 +26,10 @@
       vizEnlarge:'⛶ ZVĚTŠIT', vizHint:'klik = změnit styl · Esc = návrat',
       marqueeHint:'KBCALC · nahraj MP3 přes tlačítko ⏏ a spusť přehrávání',
       noTrack:'— žádná skladba —',
-      plEmpty:'Playlist je prázdný. Přetáhni sem MP3 / složku, nebo klikni ⏏.',
-      delConfirm:'Smazat playlist „{name}“?\n(hudební soubory na disku zůstanou)',
+      plEmpty:'Playlist je prázdný — přidej hudbu tlačítkem ⏏.',
+      delConfirm:'Smazat playlist „{name}“?',
       skipMsg:'⚠ {title} — soubor nedostupný, přeskakuji…',
+      addFailed:'⚠ {n} souborů se nepodařilo přidat',
       noPlayable:'⚠ žádný přehratelný soubor', unavailable:'(nedostupný)',
       aboutTitle:'◈ O APLIKACI KBCALC',
       aboutDesc:'Plovoucí kalkulačka s vestavěným MP3 přehrávačem ve stylu Winampu. '
@@ -62,9 +63,10 @@
       vizEnlarge:'⛶ ENLARGE', vizHint:'click = change style · Esc = back',
       marqueeHint:'KBCALC · load MP3s via the ⏏ button and hit play',
       noTrack:'— no track —',
-      plEmpty:'Playlist is empty. Drop MP3s / a folder here, or click ⏏.',
-      delConfirm:'Delete playlist "{name}"?\n(audio files stay on disk)',
+      plEmpty:'Playlist is empty — add music with the ⏏ button.',
+      delConfirm:'Delete playlist "{name}"?',
       skipMsg:'⚠ {title} — file unavailable, skipping…',
+      addFailed:'⚠ {n} file(s) could not be added',
       noPlayable:'⚠ no playable file', unavailable:'(unavailable)',
       aboutTitle:'◈ ABOUT KBCALC',
       aboutDesc:'A floating calculator with a built-in Winamp-style MP3 player. '
@@ -192,7 +194,8 @@
     histPanel.hidden=!histPanel.hidden;
     histBtn.classList.toggle('on', !histPanel.hidden);
     try{ localStorage.setItem('kbcalc.histOpen', histPanel.hidden?'0':'1'); }catch(e){}
-    if(!histPanel.hidden) histRender();
+    if(!histPanel.hidden){ histRender();
+      setTimeout(()=>histPanel.scrollIntoView({block:'nearest'}), 50); }   // mobil: ať je vidět
     fitWindow();
   };
   document.getElementById('histClear').onclick=()=>{ hist=[]; histSave(); histRender(); };
@@ -355,6 +358,9 @@
   }
   function delPlaylist(){
     if(!confirm(tr('delConfirm').replace('{name}', playlists[activePl].name))) return;
+    // mobil: ukliď zkopírované soubory z úložiště appky (jinak by zabíraly místo napořád)
+    if(window.win && window.win.removeCopied)
+      playlists[activePl].items.forEach(t=>{ if(t.path) window.win.removeCopied(t.path); });
     playlists.splice(activePl,1);
     ensureDefault();
     activePl=Math.min(activePl, playlists.length-1); list=playlists[activePl].items;
@@ -430,11 +436,18 @@
   async function load(i, autoplay){
     if(i<0||i>=list.length) return;
     idx=i; const t=list[i];
-    // podcastové epizody streamují přes kbaudio:// (main proces, CORS ok → vizualizér žije)
+    // podcastové epizody: desktop přes kbaudio:// proxy (CORS ok → vizualizér);
+    // mobil (bridge streamUrl) přímé http(s) URL do WebView
     if(!t.url && t.remote){
-      t.url='kbaudio://play/?u='+encodeURIComponent(t.remote);
+      t.url = (window.win && window.win.streamUrl) ? window.win.streamUrl(t.remote)
+                                                   : 'kbaudio://play/?u='+encodeURIComponent(t.remote);
     }
-    // lazy: soubory přetažené/obnovené mají jen path → načti bytes z disku až teď
+    // mobil: trvalá cesta (content:// z pickeru) → přehratelná URL bez kopírování;
+    // přežije restart, dokud platí oprávnění k souboru
+    if(!t.url && t.path && window.win && window.win.toPlayable){
+      t.url = window.win.toPlayable(t.path) || '';
+    }
+    // desktop: lazy načtení bytů z disku → blob
     if(!t.url && t.path && window.win && window.win.readFile){
       try{ const bytes=await window.win.readFile(t.path);
         if(bytes){
@@ -506,7 +519,7 @@
   eqRender();
 
   function ensureAudioGraph(){
-    if(audio._graph) return;
+    if(audio._graph || audio._nograph) return;
     try{
       const AC = window.AudioContext||window.webkitAudioContext;
       const ctx = new AC();
@@ -545,7 +558,8 @@
   }
   function pause(){ audio.pause(); }
   function toggle(){ audio.paused ? play() : pause(); }
-  function stop(){ audio.pause(); audio.currentTime=0; }
+  function stop(){ audio.pause(); audio.currentTime=0;
+    if(window.win && window.win.stopBackgroundAudio) window.win.stopBackgroundAudio(); }   // zavře notifikaci
   function pickNext(dir){
     if(shuffle && list.length>1){ let n; do{ n=Math.floor(Math.random()*list.length); }while(n===idx); return n; }
     return (idx+dir+list.length)%list.length;
@@ -573,10 +587,14 @@
     } else { loadFailStreak=0; setTitle(tr('noPlayable')); }
   });
 
+  const notifyPlayState=()=>{
+    const t = idx>=0&&list[idx]?((idx+1)+'. '+list[idx].title):'kbCalc';
+    if(window.win && window.win.setNowPlaying) window.win.setNowPlaying(t, !audio.paused);  // foreground service + notifikace
+  };
   audio.addEventListener('play', ()=>{ playing=true; playBtn.textContent='⏸'; miniPlay.textContent='⏸';
-    trackTitle.classList.remove('paused'); draw(); });
+    trackTitle.classList.remove('paused'); draw(); notifyPlayState(); });
   audio.addEventListener('pause', ()=>{ playing=false; playBtn.textContent='▶'; miniPlay.textContent='▶';
-    trackTitle.classList.add('paused'); if(typeof savePlaylist==='function') savePlaylist(); });
+    trackTitle.classList.add('paused'); notifyPlayState(); if(typeof savePlaylist==='function') savePlaylist(); });
   audio.addEventListener('ended', onEnded);
   audio.addEventListener('timeupdate', ()=>{
     const d=audio.duration||0, c=audio.currentTime||0;
@@ -590,14 +608,31 @@
   vol.addEventListener('input', applyVol);
   bal.addEventListener('input', applyBal);
 
+  // přidání hudby: mobil → nativní picker (trvalá cesta + convertFileSrc, přežije
+  // restart); desktop/prohlížeč → systémový file dialog (blob / Electron cesta)
+  function addMusic(){
+    if(window.win && window.win.pickFolder){
+      window.win.pickFolder().then(res=>{
+        const items = (res && res.items) || [];
+        const failed = (res && res.failed) || 0;
+        if(!items.length){ if(failed) setTitle(tr('addFailed').replace('{n}', failed)); return; }
+        const startEmpty = list.length===0;
+        items.forEach(it=>{ if(it && it.path) list.push({title:it.title, path:it.path, url:it.url||undefined}); });
+        renderTabs(); renderPlaylist(); savePlaylist(); setOpen(true);
+        if(startEmpty && list.length) load(0,true);
+        if(failed) setTitle(tr('addFailed').replace('{n}', failed));
+      });
+    } else fileInput.click();
+  }
+
   // transport buttons
   document.querySelector('.transport').addEventListener('click', e=>{
     const b=e.target.closest('.tbtn'); if(!b || !b.dataset.t) return;   // mode tlačítka mají vlastní handlery
-    ({play:toggle, stop, next, prev:prev_, eject:()=>fileInput.click()})[b.dataset.t]();
+    ({play:toggle, stop, next, prev:prev_, eject:addMusic})[b.dataset.t]();
   });
   miniPlay.onclick=toggle;
   document.getElementById('miniNext').onclick=next;
-  document.getElementById('addFiles').onclick=()=>fileInput.click();
+  document.getElementById('addFiles').onclick=addMusic;
 
   // přidání souborů přes dialog (⏏) — do aktuálního playlistu
   const AUDIO_RE = /\.(mp3|m4a|ogg|oga|wav|flac|aac|opus|wma)$/i;
@@ -999,8 +1034,11 @@
     notesBtn.classList.toggle('on', !notesPanel.hidden);
     try{ localStorage.setItem('kbcalc.notesOpen', notesPanel.hidden?'0':'1'); }catch(e){}
     fitWindow();
-    if(!notesPanel.hidden) notesArea.focus();
+    if(!notesPanel.hidden){ notesArea.focus();
+      setTimeout(()=>notesArea.scrollIntoView({block:'center'}), 250); }   // mobil: nad klávesnici
   }
+  // při psaní držet zápisník viditelný (klávesnice ho jinak překryje)
+  notesArea.addEventListener('focus', ()=>setTimeout(()=>notesArea.scrollIntoView({block:'center'}), 250));
   notesBtn.onclick=toggleNotes;
   notesArea.addEventListener('keydown', e=>{ e.stopPropagation();
     if(e.key==='Escape') toggleNotes(); });
