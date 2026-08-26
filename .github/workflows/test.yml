@@ -3,6 +3,7 @@ name: test
 on:
   push:
     branches: ['**']
+    tags: ['v*']          # bez toho by kontrola „tag == verze" níže nikdy neběžela
   pull_request:
 
 permissions:

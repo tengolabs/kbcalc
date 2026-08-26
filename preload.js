@@ -23,6 +23,10 @@ contextBridge.exposeInMainWorld('win', {
     for (const ch of ['playpause', 'next', 'prev', 'stop'])
       ipcRenderer.on('media:' + ch, () => cb(ch));
   },
+  // výsledek kontroly nové verze dojde na pozadí (dialog nečeká na síť)
+  onUpdate: (cb) => ipcRenderer.on('app:update', (e, info) => cb(info)),
+  // media klávesy se registrují jen dokud kbCalc reálně přehrává (viz main.js)
+  notifyMediaActive: (on) => ipcRenderer.send('app:mediaActive', !!on),
   // jazyk UI pro tray menu
   notifyLang: (l) => ipcRenderer.send('app:lang', l),
 });

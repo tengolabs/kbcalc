@@ -27,7 +27,8 @@
       vizEnlarge:'⛶ ZVĚTŠIT', vizHint:'klik = změnit styl · Esc = návrat',
       marqueeHint:'KBCALC · nahraj MP3 přes tlačítko ⏏ a spusť přehrávání',
       noTrack:'— žádná skladba —',
-      plEmpty:'Playlist je prázdný — přidej hudbu tlačítkem ⏏.',
+      plEmpty:'Playlist je prázdný — přetáhni sem MP3 / složku, nebo klikni ⏏.',
+      plEmptyTouch:'Playlist je prázdný — přidej hudbu tlačítkem ⏏.',
       delConfirm:'Smazat playlist „{name}“?',
       skipMsg:'⚠ {title} — soubor nedostupný, přeskakuji…',
       addFailed:'⚠ {n} souborů se nepodařilo přidat',
@@ -65,7 +66,8 @@
       vizEnlarge:'⛶ ENLARGE', vizHint:'click = change style · Esc = back',
       marqueeHint:'KBCALC · load MP3s via the ⏏ button and hit play',
       noTrack:'— no track —',
-      plEmpty:'Playlist is empty — add music with the ⏏ button.',
+      plEmpty:'Playlist is empty — drop MP3s / a folder here, or click ⏏.',
+      plEmptyTouch:'Playlist is empty — add music with the ⏏ button.',
       delConfirm:'Delete playlist "{name}"?',
       skipMsg:'⚠ {title} — file unavailable, skipping…',
       addFailed:'⚠ {n} file(s) could not be added',
@@ -139,8 +141,13 @@
     exprEl.textContent = prev!==null ? (group(prev)+' '+opSym[op]) : ' ';  // textContent, ne innerHTML
     const nv=document.getElementById('notesInsVal'); if(nv) nv.textContent=group(shown); }
 
+  const MAX_DIGITS=15;                                // strop psaní: víc číslic stejně přesně nezobrazíme
+  const digitsOf = s => s.replace(/[^0-9]/g,'').length;
   function press(k){
-    if(/^[0-9]$/.test(k)){ cur = freshNum ? k : (cur==='0'?k:cur+k); freshNum=false; }
+    // po „Error" dává smysl jen smazat nebo začít nové číslo (jinak vznikalo „-Error", „Error + 5")
+    if(cur==='Error' && !(k==='C' || /^[0-9.]$/.test(k))) return;
+    if(/^[0-9]$/.test(k)){ if(!freshNum && cur!=='0' && digitsOf(cur)>=MAX_DIGITS) return;
+      cur = freshNum ? k : (cur==='0'?k:cur+k); freshNum=false; }
     else if(k==='.'){ if(freshNum){cur='0.';freshNum=false;} else if(!cur.includes('.')) cur+='.'; }
     else if(k==='C'){ cur='0'; prev=null; op=null; freshNum=true; }
     else if(k==='back'){ if(!freshNum){ cur = cur.length>1?cur.slice(0,-1):'0'; if(cur==='-'||cur==='')cur='0'; } if(cur==='0')freshNum=true; }
@@ -165,7 +172,7 @@
   }
 
   /* ---------- HISTORIE VÝPOČTŮ ---------- */
-  const HRES_RE=/^-?[\d.]+$|^Error$/;                  // výsledek historie smí být jen číslo/„Error"
+  const HRES_RE=/^-?[\d.]+(e[+-]?\d+)?$|^Error$/i;     // výsledek historie smí být jen číslo (i v exponentu)/„Error"
   let hist=[];
   try{ const h=JSON.parse(localStorage.getItem('kbcalc.history')||'null');
     if(Array.isArray(h)) hist=h.filter(x=>x&&typeof x.e==='string'&&typeof x.r==='string'&&HRES_RE.test(x.r)).slice(0,50); }catch(e){}
@@ -210,11 +217,12 @@
   });
   window.addEventListener('keydown', e=>{
     if(e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;  // psaní do polí ≠ kalkulačka
+    if(e.ctrlKey||e.metaKey||e.altKey) return;      // Ctrl+C (kopírování), Ctrl+- (zoom) apod. nejsou vstup kalkulačky
     const vf=document.getElementById('vizFull');
     if(vf && vf.classList.contains('on')) return;   // ve fullscreen vizualizéru klávesy neovládají kalkulačku
     const ab=document.getElementById('about');
     if(ab && ab.classList.contains('on')){ if(e.key==='Escape') ab.classList.remove('on'); return; }
-    const map={'Enter':'=','=':'=','Backspace':'back','Escape':'C','c':'C','C':'C','%':'%'};
+    const map={'Enter':'=','=':'=','Backspace':'back','Escape':'C','Delete':'C','c':'C','C':'C','%':'%'};
     if(/^[0-9]$/.test(e.key)) press(e.key);
     else if('+-*/'.includes(e.key)) press(e.key);
     else if(e.key==='.'||e.key===',') press('.');
@@ -365,7 +373,12 @@
     // mobil: ukliď zkopírované soubory z úložiště appky (jinak by zabíraly místo napořád)
     if(window.win && window.win.removeCopied)
       playlists[activePl].items.forEach(t=>{ if(t.path) window.win.removeCopied(t.path); });
-    playlists.splice(activePl,1);
+    const removed=playlists.splice(activePl,1)[0];
+    // skladba z mazaného playlistu, která zrovna NEhraje, nemá co držet blob v paměti
+    if(audio.paused && curUrlTrack && removed.items.includes(curUrlTrack)){
+      if(curUrlTrack.url && curUrlTrack._lazy) URL.revokeObjectURL(curUrlTrack.url);
+      curUrlTrack.url=null; curUrlTrack=null; audio.removeAttribute('src'); showFmt(null);
+    }
     ensureDefault();
     activePl=Math.min(activePl, playlists.length-1); list=playlists[activePl].items;
     idx=Math.min(Math.max(-1, playlists[activePl].idx|0), list.length-1);
@@ -402,7 +415,8 @@
 
   function renderPlaylist(){
     if(!list.length){
-      const li=document.createElement('li'); li.className='empty'; li.textContent=tr('plEmpty');
+      const li=document.createElement('li'); li.className='empty';
+      li.textContent=tr(window.win && window.win.pickFolder ? 'plEmptyTouch' : 'plEmpty');   // mobil nemá drag&drop
       plEl.innerHTML=''; plEl.appendChild(li); return;
     }
     plEl.innerHTML='';
@@ -439,9 +453,19 @@
 
   const nativeStream = () => !!(window.win && window.win.streamPlay);   // mobil: nativní přehrávač streamů
 
+  const fmtInfo=document.getElementById('fmtInfo');
+  function showFmt(t){                        // LCD: reálný typ zdroje (přípona / STREAM), ne vymyšlený bitrate
+    if(!fmtInfo) return;
+    if(!t){ fmtInfo.textContent='—'; return; }
+    if(t.remote){ fmtInfo.textContent = t.radio ? 'LIVE STREAM' : 'STREAM'; return; }
+    const m=/\.([a-z0-9]{2,5})$/i.exec(t.path||''); fmtInfo.textContent = m ? m[1].toUpperCase() : 'AUDIO';
+  }
+  let loadGen=0;            // pořadové číslo volání load(): starší asynchronní load nesmí přepsat novější
   async function load(i, autoplay){
     if(i<0||i>=list.length) return;
+    const gen=++loadGen;
     idx=i; const t=list[i];
+    showFmt(t);
     // MOBIL: rádio/podcast (remote) → nativní přehrávač (WebView cross-origin neumí)
     if(t.remote && nativeStream()){
       streaming=true; loadFailStreak=0;
@@ -453,7 +477,18 @@
       return;
     }
     if(streaming){ streaming=false; if(window.win.streamStop) window.win.streamStop(); }
-    // podcastové epizody na DESKTOPU: kbaudio:// proxy (CORS ok → vizualizér)
+    // DESKTOP, vzdálený zdroj bez přehrání (obnova po startu, přepnutí playlistu):
+    // src NEnastavovat — jinak by Chromium hned stahoval metadata a u živého rádia
+    // otevřel stream bez jakékoli interakce uživatele. Načte se až při ▶ (viz play()).
+    if(t.remote && !autoplay){
+      if(curUrlTrack && curUrlTrack!==t && curUrlTrack.url && (curUrlTrack._lazy || (curUrlTrack.path && window.win && window.win.readFile))){
+        URL.revokeObjectURL(curUrlTrack.url); curUrlTrack.url=null; }
+      curUrlTrack=t; audio.removeAttribute('src');
+      renderTabs(); renderPlaylist(); savePlaylist();
+      loadFailStreak=0; setTitle((i+1)+'. '+t.title);
+      return;
+    }
+    // podcastové epizody / rádio na DESKTOPU: kbaudio:// proxy (CORS ok → vizualizér)
     if(!t.url && t.remote){
       t.url = 'kbaudio://play/?u='+encodeURIComponent(t.remote);
     }
@@ -465,10 +500,13 @@
     // desktop: lazy načtení bytů z disku → blob
     if(!t.url && t.path && window.win && window.win.readFile){
       try{ const bytes=await window.win.readFile(t.path);
+        if(gen!==loadGen) return;                 // mezitím se načetla jiná skladba → tohle volání skončí (žádný osiřelý blob)
         if(bytes){
           if(!t.tagged){ const tag=parseId3(bytes); if(tag) t.title=tagLabel(tag,t.title); t.tagged=true; }
+          if(t.url && t._lazy) URL.revokeObjectURL(t.url);   // pojistka: nikdy nedržet dva bloby jedné skladby
           t.url=URL.createObjectURL(new Blob([bytes])); t._lazy=true; } }catch(e){}
     }
+    if(gen!==loadGen) return;
     // uvolni předchozí object URL: lazy bloby (v RAM) vždy; File-URL jen když jde znovu načíst z disku
     if(curUrlTrack && curUrlTrack!==t && curUrlTrack.url){
       const canReload = curUrlTrack.path && window.win && window.win.readFile;
@@ -571,6 +609,8 @@
       if(list[idx]) window.win.streamPlay(list[idx].remote, (idx+1)+'. '+list[idx].title);
       return;
     }
+    // vzdálený zdroj připravený „naprázdno" (bez src) → teprve teď ho reálně načti a spusť
+    if(list[idx] && list[idx].remote && !audio.getAttribute('src')){ load(idx,true); return; }
     ensureAudioGraph();
     if(audio._graph && audio._graph.ctx.state==='suspended') audio._graph.ctx.resume();
     audio.play().then(()=>{}).catch(e=>console.warn(e));
@@ -580,6 +620,7 @@
   function stop(){
     if(streaming){ streaming=false; if(window.win.streamStop) window.win.streamStop(); return; }
     audio.pause(); audio.currentTime=0;
+    if(window.win && window.win.notifyMediaActive) window.win.notifyMediaActive(false);   // pusť media klávesy ostatním
     if(window.win && window.win.stopBackgroundAudio) window.win.stopBackgroundAudio(); }   // zavře notifikaci
   function pickNext(dir){
     if(shuffle && list.length>1){ let n; do{ n=Math.floor(Math.random()*list.length); }while(n===idx); return n; }
@@ -613,17 +654,21 @@
     if(window.win && window.win.setNowPlaying) window.win.setNowPlaying(t, !audio.paused);  // foreground service + notifikace
   };
   audio.addEventListener('play', ()=>{ playing=true; playBtn.textContent='⏸'; miniPlay.textContent='⏸';
-    trackTitle.classList.remove('paused'); draw(); notifyPlayState(); });
+    trackTitle.classList.remove('paused'); draw(); notifyPlayState();
+    if(window.win && window.win.notifyMediaActive) window.win.notifyMediaActive(true); });   // media klávesy jen když hrajeme
   audio.addEventListener('pause', ()=>{ playing=false; playBtn.textContent='▶'; miniPlay.textContent='▶';
     trackTitle.classList.add('paused'); notifyPlayState(); if(typeof savePlaylist==='function') savePlaylist(); });
   audio.addEventListener('ended', onEnded);
   audio.addEventListener('timeupdate', ()=>{
     const d=audio.duration||0, c=audio.currentTime||0;
+    if(d===Infinity){ timeEl.textContent='LIVE'; seek.value=0; miniBar.style.width='100%'; return; }   // živé rádio: bez délky, bez seeku
     timeEl.textContent=secfmt(c);
     if(d){ seek.value=Math.round(c/d*1000); miniBar.style.width=(c/d*100)+'%'; }
     const now=performance.now(); if(now-lastSave>5000){ lastSave=now; savePlaylist(); }
   });
-  audio.addEventListener('loadedmetadata', ()=>{ timeEl.textContent=secfmt(0); });
+  audio.addEventListener('loadedmetadata', ()=>{
+    const live = audio.duration===Infinity;
+    seek.disabled=live; timeEl.textContent = live ? 'LIVE' : secfmt(0); });
 
   seek.addEventListener('input', ()=>{
     if(streaming){ if(window.win.streamSeek) window.win.streamSeek(seek.value/1000 * (lastStreamDur||0)); return; }
@@ -794,7 +839,7 @@
       const pls = playlists.map(pl=>({
         name: pl.name, idx: pl.idx|0, ...(pl.feed?{feed:pl.feed}:{}),
         items: pl.items.filter(t=>t.path||t.remote).map(t=>({ title:t.title,
-          ...(t.path?{path:t.path}:{}), ...(t.remote?{remote:t.remote}:{}) }))
+          ...(t.path?{path:t.path}:{}), ...(t.remote?{remote:t.remote}:{}), ...(t.radio?{radio:true}:{}) }))
       }));
       // čas ukládej jen pro PRÁVĚ hrající skladbu aktivního playlistu — jinak by se
       // po přepnutí playlistu za hraní obnovila nová skladba na čase té staré
@@ -816,19 +861,24 @@
     if(!data || !data.playlists || !data.playlists.length) return;
     playlists = data.playlists.map(pl=>({ name: pl.name||'Playlist', idx: pl.idx|0,
       ...(pl.feed?{feed:pl.feed}:{}),
-      items:(pl.items||[]).filter(it=>it&&(it.path||it.remote)).map(it=>({ title:it.title,
-        ...(it.path?{path:it.path}:{}), ...(it.remote?{remote:it.remote}:{}) })) }));
+      items:(pl.items||[]).filter(it=>it&&(typeof it.path==='string'||typeof it.remote==='string')).map(it=>({
+        title: String(it.title||'') || (it.path ? String(it.path).split(/[\\/]/).pop().replace(/\.[^.]+$/,'') : it.remote),
+        ...(it.path?{path:it.path}:{}), ...(it.remote?{remote:it.remote}:{}), ...(it.radio?{radio:true}:{}) })) }));
     ensureDefault();
     activePl = Math.min(Math.max(0, data.active|0), playlists.length-1);
     list = playlists[activePl].items;
     renderTabs(); renderPlaylist();
     const startIdx = Math.min(Math.max(-1, playlists[activePl].idx|0), list.length-1);
     if(startIdx>=0 && window.win && window.win.readFile){
-      await load(startIdx, false);                         // načti poslední skladbu, ale nepřehrávej
-      const t=data.time||0;
-      if(t>0){ audio.addEventListener('loadedmetadata', function once(){
-        try{ audio.currentTime=Math.min(t, (audio.duration||t)); }catch(e){}
-        audio.removeEventListener('loadedmetadata', once); }); }
+      const resumeFor=list[startIdx];
+      await load(startIdx, false);                         // načti poslední skladbu, ale nepřehrávej (vzdálený zdroj: jen připrav)
+      const t=+data.time||0;
+      // pozice se obnoví při prvním načtení metadat — u souboru hned, u podcastu až po ▶;
+      // ale JEN pro tu samou skladbu (kdyby uživatel mezitím spustil jinou)
+      if(t>0 && isFinite(t)){ audio.addEventListener('loadedmetadata', function once(){
+        audio.removeEventListener('loadedmetadata', once);
+        if(curUrlTrack!==resumeFor || audio.duration===Infinity) return;
+        try{ audio.currentTime=Math.min(t, (audio.duration||t)); }catch(e){} }); }
     }
   }
   ensureDefault(); renderTabs(); renderPlaylist();          // výchozí stav před obnovou
@@ -1135,9 +1185,11 @@
   }
   document.getElementById('infoBtn').addEventListener('click', async () => {
     about.classList.add('on');
-    try { verInfo = await window.win.versionInfo(); renderVersion(); }
+    try { verInfo = await window.win.versionInfo(); renderVersion(); }   // main odpoví hned (verze + cache)
     catch (e) { /* bez IPC (prohlížečový fallback) dialog prostě nemá verzi */ }
   });
+  // kontrola nové verze doběhne na pozadí → dialog se dopíše, až GitHub odpoví (offline se nic nestane)
+  if (wc && wc.onUpdate) wc.onUpdate(info => { if (info && info.version) { verInfo = info; renderVersion(); } });
   document.querySelectorAll('.langBtn').forEach(b =>
     b.addEventListener('click', () => { setLang(b.dataset.lang); renderVersion(); }));
   applyI18n(); setStyleLabels();

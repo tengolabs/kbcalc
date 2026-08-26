@@ -31,7 +31,9 @@ with a real-time visualizer.
 - Transport controls (prev / play–pause / stop / next / eject-to-add-files),
   plus **shuffle** and **repeat** (off / all / one) — both remembered.
 - **Hardware media keys** work even when the app is in the background
-  (play/pause, next, previous, stop).
+  (play/pause, next, previous, stop). They are grabbed only while kbCalc is
+  the active player (from ▶ until Stop), so Spotify or your browser keep
+  them the rest of the time.
 - **Tray icon**: show/hide the window, playback controls, quit.
 - VOLUME and BALANCE sliders backed by Web Audio, plus a **5-band equalizer**
   (60 Hz – 12 kHz, presets: Flat/Rock/Pop/Jazz/Bass+/Vocal, remembered).
@@ -40,6 +42,11 @@ with a real-time visualizer.
 - **Podcasts** (`📡`): paste an RSS feed URL and the episodes become a new
   playlist, streamed on demand (with seeking); the visualizer and equalizer
   work on podcasts too. Playback position is remembered like for files.
+- **Internet radio** (`📻`): paste a stream URL (Icecast/Shoutcast, e.g. a
+  SomaFM channel) and it becomes a station in the playlist — the display
+  shows `LIVE`, visualizer and equalizer work as with files.
+- Remote sources (podcasts, radio) are connected **only when you press ▶** —
+  restoring a playlist after start never opens a network connection by itself.
 
   <img src="docs/player.png" width="380" alt="Player with equalizer open">
 - **Multiple named playlists**: create, inline-rename, delete, switch from the
@@ -108,7 +115,10 @@ packages attached.
 - On **Linux**, hardware acceleration is disabled (works around a GPU-process
   crash with transparent frameless windows); Windows/macOS keep it on for a
   smoother visualizer.
-- The `--no-sandbox` flag is applied on Linux only.
+- Packaged builds run with the Chromium sandbox on every OS. Only the dev
+  launcher script `kbcalc.sh` passes `--no-sandbox` (Electron's
+  `chrome-sandbox` helper in `node_modules` lacks the SUID bit on some
+  distributions); `npm start` does not.
 
 ## Security model
 
@@ -127,14 +137,16 @@ The app follows Electron hardening practice:
   allowlist keyed by name (the renderer passes a key, not a URL).
 - The update check runs in the main process, at most once a day, and fails
   silently offline.
-- **Podcasts** are the one place the renderer can trigger a network request,
-  and only through two narrow main-process channels: fetching the RSS feed you
-  paste, and streaming the episode you play (via a custom `kbaudio://` scheme).
-  Both go through an **SSRF guard** — the target host is resolved and private /
-  loopback / link-local ranges are refused, redirects are followed manually and
-  every hop is re-checked, with a size cap and timeout. So a hostile feed cannot
-  make the app probe `localhost` or your LAN, and the audio graph stays
-  un-tainted so the visualizer and equalizer work on podcasts too.
+- **Podcasts and internet radio** are the one place the renderer can trigger
+  a network request, and only through two narrow main-process channels:
+  fetching the RSS feed you paste, and streaming the episode / station you
+  play (via a custom `kbaudio://` scheme). Both go through an **SSRF guard** —
+  the target host is resolved and private / loopback / link-local ranges are
+  refused, redirects are followed manually (`net.request` in manual mode) and
+  every hop is re-checked, with a size cap and timeout. So a hostile feed
+  cannot make the app probe `localhost` or your LAN, and the audio graph stays
+  un-tainted so the visualizer and equalizer work on podcasts too. Remote
+  sources are only connected when you press ▶, never on start-up.
 - No dangerous permissions: the app denies all permission requests
   (microphone, camera, notifications, …) — it needs none.
 

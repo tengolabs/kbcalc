@@ -15,13 +15,15 @@ never uploads anything — there is no telemetry. It makes network requests only
 in the main process, on your behalf:
 
 - an anonymous once-a-day query to the GitHub Releases API (new-version check);
-- when you add a podcast: downloading its RSS feed and streaming the episodes
-  you play.
+- when you add a podcast or an internet radio station: downloading the RSS
+  feed and streaming the episode / station you play (only after you press ▶ —
+  never on start-up).
 
-Podcast requests go through an SSRF guard that resolves the target host and
-refuses private / loopback / link-local ranges, follows redirects manually and
-re-checks every hop. The renderer never fetches over the network itself; it
-only asks the main process for these two specific operations.
+Podcast and radio requests go through an SSRF guard that resolves the target
+host and refuses private / loopback / link-local ranges, follows redirects
+manually and re-checks every hop. The renderer never fetches over the network
+itself; it only asks the main process for these two specific operations
+(fetch a feed, stream a URL).
 
 Reports about the Electron hardening (IPC surface, CSP, file-system guards, the
 podcast fetch/stream path) are especially welcome.

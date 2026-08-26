@@ -30,7 +30,8 @@ v dolní liště vedle ní vysune plnohodnotný přehrávač s vizualizérem.
 - Transport (předchozí / play–pauza / stop / další / eject = přidat soubory)
   + **náhodné přehrávání** a **opakování** (vypnuto / vše / jedna) — obojí se pamatuje.
 - **Hardwarová media tlačítka** fungují, i když je appka na pozadí
-  (play/pauza, další, předchozí, stop).
+  (play/pauza, další, předchozí, stop). Zabírají se jen dokud je kbCalc
+  aktivní přehrávač (od ▶ do Stop) — jinak je dál dostane Spotify či prohlížeč.
 - **Ikona v tray**: zobrazit/skrýt okno, ovládání přehrávání, ukončení.
 - VOLUME a BALANCE přes Web Audio + **5pásmový ekvalizér**
   (60 Hz – 12 kHz, presety Flat/Rock/Pop/Jazz/Bass+/Vocal, pamatuje se).
@@ -39,6 +40,11 @@ v dolní liště vedle ní vysune plnohodnotný přehrávač s vizualizérem.
 - **Podcasty** (`📡`): vlož URL RSS kanálu a epizody se stanou novým
   playlistem — streamují se na vyžádání (funguje i posun), vizualizér
   a ekvalizér běží i u podcastů. Pozice přehrávání se pamatuje.
+- **Internetové rádio** (`📻`): vlož URL streamu (Icecast/Shoutcast, např.
+  kanál SomaFM) a stanice se objeví v playlistu — displej ukazuje `LIVE`,
+  vizualizér i ekvalizér fungují jako u souborů.
+- Vzdálené zdroje (podcasty, rádia) se připojují **až po stisku ▶** — obnova
+  playlistu po startu sama nikdy neotevře síťové spojení.
 
   <img src="docs/player.png" width="380" alt="Přehrávač s otevřeným ekvalizérem">
 - **Víc pojmenovaných playlistů**: nový, inline přejmenování, smazání,
@@ -98,7 +104,9 @@ všechny tři OS na vlastních runnerech; tag `v*` vytvoří Release s balíčky
 
 - Na **Linuxu** se vypíná HW akcelerace (workaround na pád GPU procesu u
   průhledného okna); Windows/macOS ji mají zapnutou.
-- `--no-sandbox` jen na Linuxu.
+- Zabalené buildy běží s Chromium sandboxem na všech OS. `--no-sandbox`
+  předává jen vývojářský spouštěč `kbcalc.sh` (electronový `chrome-sandbox`
+  v `node_modules` nemá na některých distribucích SUID bit); `npm start` ne.
 
 ## Bezpečnostní model
 
@@ -114,14 +122,16 @@ všechny tři OS na vlastních runnerech; tag `v*` vytvoří Release s balíčky
   dialogu O aplikaci se otevírají v systémovém prohlížeči a jen z pevného
   allowlistu podle klíče (renderer předává klíč, ne URL).
 - Kontrola verze běží v main procesu, max 1× denně, offline mlčky selže.
-- **Podcasty** jsou jediné místo, kde renderer spustí síťový požadavek, a to
-  jen přes dva úzké kanály v main procesu: stažení RSS kanálu, který vložíš,
-  a stream epizody, kterou přehráváš (přes vlastní schéma `kbaudio://`).
-  Oba procházejí **ochranou proti SSRF** — cílový host se resolvuje a privátní
-  / loopback / link-local rozsahy se odmítnou, redirecty se řeší ručně a každý
+- **Podcasty a internetová rádia** jsou jediné místo, kde renderer spustí
+  síťový požadavek, a to jen přes dva úzké kanály v main procesu: stažení RSS
+  kanálu, který vložíš, a stream epizody / stanice, kterou přehráváš (přes
+  vlastní schéma `kbaudio://`). Oba procházejí **ochranou proti SSRF** —
+  cílový host se resolvuje a privátní / loopback / link-local rozsahy se
+  odmítnou, redirecty se řeší ručně (`net.request` v manuálním režimu) a každý
   hop se prověří, plus limit velikosti a timeout. Podvržený feed tak nedonutí
   appku ťukat na `localhost` ani do LAN, a audio graf zůstává bez CORS-taintu,
-  takže vizualizér i ekvalizér fungují i u podcastů.
+  takže vizualizér i ekvalizér fungují i u podcastů. Vzdálené zdroje se
+  připojují jen po stisku ▶, nikdy při startu.
 - Žádná citlivá oprávnění: appka odmítá všechny žádosti o oprávnění
   (mikrofon, kamera, notifikace…) — žádné nepotřebuje.
 

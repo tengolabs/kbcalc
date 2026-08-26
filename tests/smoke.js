@@ -139,10 +139,33 @@ press(['C','8','/','0','=']);        ok('8 / 0 = Error', display() === 'Error');
 press(['C','1','.','5','+','2','.','7','=']); ok('1.5 + 2.7 = 4.2', display() === '4.2');
 press(['C','5','0','*','1','0','%','=']); ok('50 × 10 % = 5', display() === '5');
 
+// left-to-right evaluation is intentional (Windows Standard) — approved behaviour, keep
+press(['C','2','+','3','*','4','=']); ok('2 + 3 × 4 = 20 (left-to-right, on purpose)', display() === '20');
+
+// after "Error" only C / a new number make sense (used to produce "-Error")
+press(['C','8','/','0','=','neg']);   ok('± on Error stays Error', display() === 'Error');
+press(['+']);                         ok('operator on Error is ignored', display() === 'Error');
+press(['7']);                         ok('digit after Error starts a new number', display() === '7');
+press(['C','8','/','0','=']);         // leave the last history entry deterministic (8 ÷ 0)
+
+// input cap: 15 digits max (20 presses of 7 must not become 7.7e+19)
+press(['C']); for (let i = 0; i < 20; i++) pressKey('7');
+ok('input capped at 15 digits', display() === '7.7777778e+14');
+
+// keyboard: modifier combos (Ctrl+C = copy, Ctrl+- = zoom) must not drive the calculator
+const keydown = (listeners.keydown || [])[0];
+ok('window keydown handler installed', typeof keydown === 'function');
+const key = (k, mods = {}) => keydown({ key: k, target: { tagName: 'BODY' }, preventDefault() {}, ...mods });
+press(['C','4','2']);
+key('c', { ctrlKey: true });   ok('Ctrl+C does not clear the display', display() === '42');
+key('-', { ctrlKey: true });   ok('Ctrl+- is not an operator', byId.expr._text.trim() === '');
+key('Delete');                 ok('Delete clears like C', display() === '0');
+key('5'); key('Enter');        ok('plain keys still work', display() === '5');
+
 // history recorded and capped-ish
 const hist = JSON.parse(sandbox.localStorage.getItem('kbcalc.history') || '[]');
 ok('history is recorded', Array.isArray(hist) && hist.length >= 5 && hist[0].r !== undefined);
-ok('history newest first', hist[0].e.includes('50'));
+ok('history newest first', hist[0].e.includes('8 ÷ 0') && hist[0].r === 'Error');
 
 // i18n dictionaries must have identical key sets (cs vs en) — catches missing translations
 const dictRe = /const I18N\s*=\s*\{/;

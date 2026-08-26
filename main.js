@@ -3,6 +3,8 @@ const { app, BrowserWindow, ipcMain, shell, globalShortcut, Tray, Menu, nativeIm
 const path = require('path');
 const fs = require('fs');
 const dns = require('dns');
+const nodeNet = require('node:net');
+const { Readable } = require('node:stream');
 
 // ---------- ochrana proti SSRF (podcasty) ----------
 // Podcast feed i epizoda jsou CIZÍ URL. Bez filtru by appka udělala GET na
@@ -32,32 +34,59 @@ function ipIsPrivate(ip) {
   return false;
 }
 async function assertPublicHost(hostname) {
+  // URL.hostname vrací IPv6 literál v hranatých závorkách ([::1]) → svléknout
+  const h = String(hostname || '').replace(/^\[(.*)\]$/, '$1');
   // literální IP: ověř přímo; jinak resolvuj a ověř VŠECHNY adresy
-  if (net.isIP ? net.isIP(hostname) : /^[\d.:]+$/.test(hostname)) {
-    if (ipIsPrivate(hostname)) throw new Error('blocked-ip');
+  // (Electronový modul `net` nemá isIP — používá se ten z Node)
+  if (nodeNet.isIP(h)) {
+    if (ipIsPrivate(h)) throw new Error('blocked-ip');
     return;
   }
-  const addrs = await dns.promises.lookup(hostname, { all: true });
+  const addrs = await dns.promises.lookup(h, { all: true });
   if (!addrs.length || addrs.some(a => ipIsPrivate(a.address))) throw new Error('blocked-host');
 }
-// fetch s ručními redirecty (max 5), timeoutem a SSRF kontrolou každého hopu
+// Jeden HTTP hop bez sledování redirectu. Používá net.request, ne net.fetch:
+// net.fetch v režimu redirect:'manual' 3xx odpověď NEVRÁTÍ, ale spadne na
+// „Redirect was cancelled" — ověřeno naživo na Electronu 43/44. Takhle dostaneme
+// Location a rozhodneme sami (po SSRF kontrole), kam se smí pokračovat.
+function requestHop(url, headers, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const req = net.request({ url, method: 'GET', redirect: 'manual', credentials: 'omit', useSessionCookies: false });
+    for (const [k, v] of Object.entries(headers)) req.setHeader(k, v);
+    let settled = false;
+    const done = (fn, v) => { if (settled) return; settled = true; clearTimeout(timer); fn(v); };
+    const timer = setTimeout(() => { try { req.abort(); } catch {} done(reject, new Error('timeout')); }, timeoutMs);
+    req.on('redirect', (status, method, redirectUrl) => {
+      done(resolve, { redirect: redirectUrl, status });
+      try { req.abort(); } catch {}                         // nesledovat automaticky
+    });
+    req.on('response', res => done(resolve, { response: res }));
+    req.on('error', e => done(reject, e));
+    req.end();
+  });
+}
+// Fetch s ručními redirecty (max 5), timeoutem (na hlavičky) a SSRF kontrolou
+// KAŽDÉHO hopu. Vrací Web Response (stream), aby volající mohli zůstat u
+// fetch API (status/headers/body).
 async function safeFetch(url, { headers = {}, timeoutMs = 15000, maxRedirects = 5 } = {}) {
   let cur = String(url);
   for (let i = 0; i <= maxRedirects; i++) {
     const u = new URL(cur);
     if (!/^https?:$/.test(u.protocol)) throw new Error('bad-scheme');
     await assertPublicHost(u.hostname);
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-    let r;
-    try {
-      r = await net.fetch(u.href, { headers, redirect: 'manual', signal: ctrl.signal, credentials: 'omit' });
-    } finally { clearTimeout(timer); }
-    if (r.status >= 300 && r.status < 400 && r.headers.get('location')) {
-      cur = new URL(r.headers.get('location'), u).href;    // další hop → znovu prověřit
+    const hop = await requestHop(u.href, headers, timeoutMs);
+    if (hop.redirect) {
+      cur = new URL(hop.redirect, u).href;                  // další hop → znovu prověřit
       continue;
     }
-    return r;
+    const res = hop.response;
+    const h = new Headers();
+    for (const [k, v] of Object.entries(res.headers || {}))
+      h.set(k, Array.isArray(v) ? v.join(', ') : String(v));
+    const status = res.statusCode;
+    const noBody = status === 204 || status === 205 || status === 304;
+    if (noBody) { res.resume(); return new Response(null, { status, headers: h }); }
+    return new Response(Readable.toWeb(res), { status, headers: h });
   }
   throw new Error('too-many-redirects');
 }
@@ -205,6 +234,23 @@ function buildTrayMenu() {
 }
 ipcMain.on('app:lang', (e, l) => { trayLang = l === 'en' ? 'en' : 'cs'; buildTrayMenu(); });
 
+// Hardwarová media tlačítka: globalShortcut je „zabere" pro celý systém, takže
+// je registrujeme JEN dokud je kbCalc aktivní přehrávač (od stisku ▶ do Stop /
+// konce playlistu). Jinak by kbCalc běžící v tray ukradl Play/Pause Spotify
+// nebo prohlížeči, i když sám nic nehraje.
+const MEDIA_KEYS = [['MediaPlayPause', 'playpause'], ['MediaNextTrack', 'next'],
+                    ['MediaPreviousTrack', 'prev'], ['MediaStop', 'stop']];
+let mediaKeysOn = false;
+function setMediaKeys(on) {
+  on = !!on;
+  if (on === mediaKeysOn) return;
+  mediaKeysOn = on;
+  for (const [acc, ch] of MEDIA_KEYS) {
+    try { on ? globalShortcut.register(acc, () => sendMedia(ch)) : globalShortcut.unregister(acc); } catch {}
+  }
+}
+ipcMain.on('app:mediaActive', (e, on) => setMediaKeys(on));
+
 app.whenReady().then(() => {
   // appka nepotřebuje ŽÁDNÉ oprávnění (mikrofon/kamera/notifikace/…) → deny-all
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(false));
@@ -223,11 +269,6 @@ app.whenReady().then(() => {
     } catch (e) { return new Response('', { status: 502 }); }
   });
   createWindow();
-  // media klávesy fungují, i když je appka na pozadí
-  for (const [acc, ch] of [['MediaPlayPause', 'playpause'], ['MediaNextTrack', 'next'],
-                           ['MediaPreviousTrack', 'prev'], ['MediaStop', 'stop']]) {
-    try { globalShortcut.register(acc, () => sendMedia(ch)); } catch {}
-  }
   try {
     const img = nativeImage.createFromPath(path.join(__dirname, 'build', 'icon.png'))
       .resize({ width: 20, height: 20 });
@@ -283,7 +324,8 @@ ipcMain.handle('fs:read', async (e, p) => {
 });
 ipcMain.handle('fs:expand', async (e, paths) => {
   const out = [];
-  for (const p of (paths || [])) {
+  if (!Array.isArray(paths)) return out;
+  for (const p of paths) {
     try {
       if (!isLocalAbs(p)) continue;
       const lst = await fs.promises.lstat(p);
@@ -318,6 +360,7 @@ ipcMain.handle('fs:expand', async (e, paths) => {
 // nic jiného než text feedu.
 ipcMain.handle('podcast:fetch', async (e, url) => {
   try {
+    if (typeof url !== 'string') return { error: 'bad-url' };
     const r = await safeFetch(url, { timeoutMs: 15000 });  // SSRF-safe
     if (!r.ok) return { error: 'http-' + r.status };
     const reader = r.body.getReader();
@@ -351,29 +394,39 @@ ipcMain.on('app:openRelease', () => {
 // Kontrola nové verze: ptá se GitHub releases, max 1× denně (cache v userData),
 // všechna selhání mlčí (bez sítě / privátní repo / limit API = prostě se nic nehlásí).
 // Nikam nic neodesíláme — žádná telemetrie, jen anonymní dotaz na poslední release.
-ipcMain.handle('app:versionInfo', async () => {
+// Odpověď je OKAMŽITÁ (verze + případně cache); síťový dotaz běží na pozadí
+// s timeoutem a výsledek se do okna dopošle přes 'app:update'. Dřív dialog
+// čekal na GitHub bez timeoutu → offline zůstala verze prázdná.
+function infoFrom(rec) {
   const version = app.getVersion();
+  if (rec && typeof rec.url === 'string' &&
+      rec.url.startsWith(`https://github.com/${UPDATE_REPO}/releases`)) releaseUrl = rec.url;
+  const latest = rec && typeof rec.tag === 'string' ? rec.tag : '';
+  return { version, latest, hasUpdate: isNewer(latest, version) };
+}
+let updateCheckRunning = false;
+async function checkUpdateInBackground(cacheFile) {
+  if (updateCheckRunning) return;
+  updateCheckRunning = true;
+  try {
+    const r = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`,
+      { headers: { Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return;
+    const rel = await r.json();
+    const rec = { at: Date.now(), repo: UPDATE_REPO, tag: rel.tag_name || '', url: rel.html_url || '' };
+    await fs.promises.writeFile(cacheFile, JSON.stringify(rec)).catch(() => {});
+    if (win && !win.isDestroyed()) win.webContents.send('app:update', infoFrom(rec));
+  } catch {} finally { updateCheckRunning = false; }
+}
+ipcMain.handle('app:versionInfo', async () => {
   const cacheFile = path.join(app.getPath('userData'), 'update-check.json');
   let rec = null;
   try {
     const c = JSON.parse(await fs.promises.readFile(cacheFile, 'utf8'));
     if (c && c.repo === UPDATE_REPO && Date.now() - c.at < 24 * 3600e3) rec = c;
   } catch {}
-  if (!rec) {
-    try {
-      const r = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`,
-        { headers: { Accept: 'application/vnd.github+json' } });
-      if (r.ok) {
-        const rel = await r.json();
-        rec = { at: Date.now(), repo: UPDATE_REPO, tag: rel.tag_name || '', url: rel.html_url || '' };
-        await fs.promises.writeFile(cacheFile, JSON.stringify(rec)).catch(() => {});
-      }
-    } catch {}
-  }
-  if (rec && typeof rec.url === 'string' &&
-      rec.url.startsWith(`https://github.com/${UPDATE_REPO}/releases`)) releaseUrl = rec.url;
-  const latest = rec ? rec.tag : '';
-  return { version, latest, hasUpdate: isNewer(latest, version) };
+  if (!rec) checkUpdateInBackground(cacheFile);            // nečekat — výsledek dojde eventem
+  return infoFrom(rec);
 });
 
 app.on('window-all-closed', () => app.quit());

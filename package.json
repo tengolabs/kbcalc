@@ -1,6 +1,6 @@
 {
   "name": "kbcalc",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Floating calculator with a built-in Winamp-style MP3 player (Electron, cross-platform)",
   "author": "Richard <info@killbottleneck.com>",
   "homepage": "https://github.com/tengosro/kbcalc",
@@ -15,8 +15,8 @@
     "dist:mac": "electron-builder --mac"
   },
   "devDependencies": {
-    "electron": "^43.2.0",
-    "electron-builder": "^25.1.8"
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3"
   },
   "build": {
     "appId": "com.tengolabs.kbcalc",

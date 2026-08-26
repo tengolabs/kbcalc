@@ -7,13 +7,19 @@ and the codebase is deliberately tiny.
 
 ```bash
 npm install
-npm start          # dev launch (on Linux this passes --no-sandbox, see kbcalc.sh)
+npm start          # dev launch (if Electron's chrome-sandbox refuses to start on your Linux, use ./kbcalc.sh — it adds --no-sandbox)
 npm test           # dependency-free checks: syntax, calculator/history, i18n, SSRF filter
 ```
 
 `npm test` runs in plain Node (no Electron) and is what CI runs on every push
 and PR — keep it green. It won't catch UI/Electron regressions, so also launch
 the app and click through anything you touched.
+
+When running from source you will see an *"Electron Security Warning (Insecure
+Content-Security-Policy)"* in the DevTools console. It is a known Electron
+false positive with `contextIsolation` (the check runs in the isolated world,
+which is not covered by the page CSP); the CSP is set in `index.html` and
+packaged builds do not print the warning.
 
 ## Code layout
 
