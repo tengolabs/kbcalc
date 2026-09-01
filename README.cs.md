@@ -1,9 +1,17 @@
 # kbCalc
 
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-2bff77.svg)](LICENSE)
+[![Poslední vydání](https://img.shields.io/github/v/release/tengolabs/kbcalc)](../../releases)
+[![Testy](https://github.com/tengolabs/kbcalc/actions/workflows/test.yml/badge.svg)](../../actions)
+[![Stažení](https://img.shields.io/github/downloads/tengolabs/kbcalc/total)](../../releases)
+
 *Prefer English? → [README.md](README.md)*
 
-Plovoucí průhledná **kalkulačka** s vestavěným **MP3 přehrávačem ve stylu Winampu**.
-Postavené na Electronu, jedna codebase pro **Linux, Windows i macOS**.
+**Svobodný open source software (MIT).** Plovoucí průhledná **kalkulačka**
+s vestavěným **MP3 přehrávačem ve stylu Winampu**. Postavené na Electronu,
+jedna codebase pro **Linux, Windows i macOS**. Stáhněte, prostudujte,
+forkněte, používejte i komerčně — přesně proto existuje: ukázková open source
+aplikace od tvůrců [killBottleneck](https://killbottleneck.com).
 
 ![kbCalc — kalkulačka s rozbaleným přehrávačem](docs/screenshot.png)
 

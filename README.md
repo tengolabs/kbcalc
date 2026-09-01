@@ -1,9 +1,17 @@
 # kbCalc
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-2bff77.svg)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/tengolabs/kbcalc)](../../releases)
+[![Tests](https://github.com/tengolabs/kbcalc/actions/workflows/test.yml/badge.svg)](../../actions)
+[![Downloads](https://img.shields.io/github/downloads/tengolabs/kbcalc/total)](../../releases)
+
 *Čtete raději česky? → [README.cs.md](README.cs.md)*
 
-A floating, translucent **calculator** with a built-in **Winamp-style MP3 player**.
-Built on Electron — one codebase for **Linux, Windows and macOS**.
+**Free and open source (MIT).** A floating, translucent **calculator** with a
+built-in **Winamp-style MP3 player**. Built on Electron — one codebase for
+**Linux, Windows and macOS**. Download it, study it, fork it, use it
+commercially — that's the point: a showcase open source app from the makers
+of [killBottleneck](https://killbottleneck.com).
 
 ![kbCalc — calculator with the player expanded](docs/screenshot.png)
 
