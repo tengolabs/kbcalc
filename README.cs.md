@@ -26,6 +26,8 @@ v dolní liště vedle ní vysune plnohodnotný přehrávač s vizualizérem.
 - **Historie výpočtů** (`≣`): posledních 50 výsledků i s výrazy; kliknutím
   na záznam s ním počítáš dál. Persistovaná, jde smazat.
 
+  <img src="docs/notes.png" width="240" alt="Mini zápisník pod kalkulačkou s vloženým výsledkem">
+
 **Přehrávač**
 - Transport (předchozí / play–pauza / stop / další / eject = přidat soubory)
   + **náhodné přehrávání** a **opakování** (vypnuto / vše / jedna) — obojí se pamatuje.

@@ -27,6 +27,8 @@ with a real-time visualizer.
 - **Calculation history** (`≣`): the last 50 results with their expressions;
   click an entry to continue calculating with it. Persisted, clearable.
 
+  <img src="docs/notes.png" width="240" alt="Mini notepad under the calculator with an inserted result">
+
 **Player**
 - Transport controls (prev / play–pause / stop / next / eject-to-add-files),
   plus **shuffle** and **repeat** (off / all / one) — both remembered.
