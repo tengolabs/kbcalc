@@ -3,7 +3,7 @@
 All notable changes to kbCalc are documented here.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.0] — 2026-09-01
 
 First public release under the kbCalc name (previously an internal prototype
 called CalcAmp). Highlights since the last internal build:
