@@ -116,12 +116,12 @@ function posOnScreen(p) {           // nerestauruj pozici mimo aktuální monito
 // Odkazy se otevírají VÝHRADNĚ v systémovém prohlížeči a jen z tohoto allowlistu —
 // renderer posílá klíč, nikdy URL (i při XSS nejde otevřít nic cizího).
 const LINKS = {
-  github: 'https://github.com/tengosro/kbcalc',   // TODO při zveřejnění na tengolabs: tengolabs/kbcalc
+  github: 'https://github.com/tengolabs/kbcalc',
   web: 'https://killbottleneck.com',
   youtube: 'https://www.youtube.com/@ctrlaltaicz',
   discord: 'https://discord.gg/dkxMdVKwXw',
 };
-const UPDATE_REPO = 'tengosro/kbcalc';            // TODO při zveřejnění na tengolabs: tengolabs/kbcalc
+const UPDATE_REPO = 'tengolabs/kbcalc';
 let releaseUrl = '';                               // jen z poslední ověřené odpovědi GitHubu
 
 // "v1.2" vs "1.10" — porovnávají se číselné části (stejná logika jako killBottleneck)
